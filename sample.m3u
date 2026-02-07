@@ -1,0 +1,10 @@
+#EXTM3U
+
+#EXTINF:-1 tvg-id="bigbuckbunny" tvg-name="Big Buck Bunny" group-title="Test Streams",Big Buck Bunny (Test)
+https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
+
+#EXTINF:-1 tvg-id="sintel" tvg-name="Sintel" group-title="Test Streams",Sintel Trailer
+https://bitmovin-a.akamaihd.net/content/sintel/hls/playlist.m3u8
+
+#EXTINF:-1 tvg-id="cctv1" tvg-name="CCTV-1" group-title="Live Channels",CCTV-1
+http://ott.mobaibox.com/PLTV/3/224/3221227375/index.m3u8
