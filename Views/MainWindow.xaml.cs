@@ -35,7 +35,8 @@ public partial class MainWindow : Window
     private readonly SettingsService _settingsService = new();
 
     // Circular scrolling for windowed channel list
-    private const int CircularCopies = 3;
+    private const int CircularCopies = 5;
+    private const int MiddleCopy = CircularCopies / 2; // copy index 2 of 0-4
     private List<Channel> _circularItems = new();
     private bool _isRecentering = false;
     private bool _suppressSelectionChanged = false;
@@ -624,23 +625,23 @@ public partial class MainWindow : Window
 
         double oneCopyHeight = scrollViewer.ScrollableHeight / (CircularCopies - 1);
 
-        if (scrollViewer.VerticalOffset < oneCopyHeight * 0.3 ||
-            scrollViewer.VerticalOffset > oneCopyHeight * 1.7)
+        // Re-center if scrolled beyond 1 copy from the middle (far enough to be invisible)
+        if (scrollViewer.VerticalOffset < oneCopyHeight * 0.5 ||
+            scrollViewer.VerticalOffset > oneCopyHeight * (CircularCopies - 1.5))
         {
             _isRecentering = true;
-            double newOffset = oneCopyHeight + (scrollViewer.VerticalOffset % oneCopyHeight);
+            double newOffset = MiddleCopy * oneCopyHeight + (scrollViewer.VerticalOffset % oneCopyHeight);
+
+            scrollViewer.ScrollToVerticalOffset(newOffset);
 
             int selectedIndexInCopy = -1;
             if (_manualSelectedIndex >= 0 && channels.Count > 0)
             {
                 selectedIndexInCopy = _manualSelectedIndex % channels.Count;
             }
-
-            scrollViewer.ScrollToVerticalOffset(newOffset);
-
             if (selectedIndexInCopy >= 0)
             {
-                int middleCopyIndex = channels.Count + selectedIndexInCopy;
+                int middleCopyIndex = MiddleCopy * channels.Count + selectedIndexInCopy;
                 SetWindowManualSelection(middleCopyIndex);
             }
 
@@ -700,7 +701,7 @@ public partial class MainWindow : Window
                 if (sv != null && sv.ScrollableHeight > 0)
                 {
                     double oneCopyHeight = sv.ScrollableHeight / (CircularCopies - 1);
-                    sv.ScrollToVerticalOffset(oneCopyHeight);
+                    sv.ScrollToVerticalOffset(MiddleCopy * oneCopyHeight);
                 }
                 SyncWindowSelectedChannel();
             });
@@ -721,7 +722,7 @@ public partial class MainWindow : Window
                 int clickIdx = channels.IndexOf(selected);
                 if (clickIdx >= 0)
                 {
-                    int middleIndex = channels.Count + clickIdx;
+                    int middleIndex = MiddleCopy * channels.Count + clickIdx;
                     SetWindowManualSelection(middleIndex);
                 }
             }
@@ -733,7 +734,7 @@ public partial class MainWindow : Window
 
         if (_isCircularMode)
         {
-            int middleIndex = channels.Count + idx;
+            int middleIndex = MiddleCopy * channels.Count + idx;
             SetWindowManualSelection(middleIndex);
         }
         else
