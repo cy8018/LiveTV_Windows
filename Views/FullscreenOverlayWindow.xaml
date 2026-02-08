@@ -149,9 +149,12 @@
             </Button>
         </StackPanel>
 
-        <!-- Channel Sidebar (left side) -->
+        <!-- Channel Sidebar -->
         <Border x:Name="SidebarPanel" HorizontalAlignment="Left" VerticalAlignment="Stretch" Width="200" 
-                Background="#E8252526" Margin="0,0,0,82">
+                Background="#E8252526" Margin="0,100,0,100">
+            <Border.CornerRadius>
+                <CornerRadius TopRight="12" BottomRight="12" TopLeft="0" BottomLeft="0"/>
+            </Border.CornerRadius>
             <Border.RenderTransform>
                 <TranslateTransform x:Name="SidebarTransform" X="0"/>
             </Border.RenderTransform>
@@ -160,20 +163,10 @@
             </Border.Effect>
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0" Background="#1E1E1E" Padding="15,12">
-                    <Grid>
-                        <TextBlock Text="Channels" FontSize="20" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
-                        <Button Style="{StaticResource OverlayIconButton}" HorizontalAlignment="Right" Width="40" Height="40" ToolTip="Close" Click="CloseSidebar_Click">
-                            <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="16"/>
-                        </Button>
-                    </Grid>
-                </Border>
-
-                <ListBox Grid.Row="1" x:Name="ChannelList" Background="Transparent" BorderThickness="0"
+                <ListBox Grid.Row="0" x:Name="ChannelList" Background="Transparent" BorderThickness="0"
                          ItemContainerStyle="{StaticResource OverlayChannelListBoxItem}"
                          ScrollViewer.VerticalScrollBarVisibility="Hidden" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          ScrollViewer.CanContentScroll="False"
@@ -236,9 +229,14 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <Button Grid.Column="0" Style="{StaticResource OverlayIconButton}" ToolTip="Show Channels" Click="ShowChannels_Click" Margin="0,0,20,0">
-                    <TextBlock Text="&#xE8FD;" FontFamily="Segoe MDL2 Assets" FontSize="22"/>
-                </Button>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,20,0">
+                    <Button Style="{StaticResource OverlayIconButton}" ToolTip="Show Channels" Click="ShowChannels_Click">
+                        <TextBlock Text="&#xE8FD;" FontFamily="Segoe MDL2 Assets" FontSize="22"/>
+                    </Button>
+                    <Button x:Name="ToggleSidebarPositionButton" Style="{StaticResource OverlayIconButton}" ToolTip="Move channel list to other side" Click="ToggleSidebarPosition_Click" Margin="4,0,0,0">
+                        <TextBlock x:Name="ToggleSidebarIcon" Text="&#xE72A;" FontFamily="Segoe MDL2 Assets" FontSize="18"/>
+                    </Button>
+                </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                     <Button Style="{StaticResource OverlayIconButton}" ToolTip="Previous Channel" Command="{Binding PreviousChannelCommand}">
@@ -282,7 +280,7 @@
                     <Button Style="{StaticResource OverlayIconButton}" ToolTip="Mute" Command="{Binding MuteCommand}">
                         <TextBlock Text="{Binding VolumeIcon}" FontFamily="Segoe MDL2 Assets" FontSize="22"/>
                     </Button>
-                    <Slider Style="{StaticResource OverlayVolumeSlider}" Value="{Binding Volume}" Width="150" Margin="10,0,20,0"/>
+                    <Slider Style="{StaticResource OverlayVolumeSlider}" Value="{Binding Volume}" Width="200" Margin="10,0,20,0"/>
                     <Button Style="{StaticResource OverlayIconButton}" ToolTip="Exit Fullscreen (Esc)" Click="ExitFullscreen_Click">
                         <TextBlock Text="&#xE73F;" FontFamily="Segoe MDL2 Assets" FontSize="22"/>
                     </Button>

@@ -70,6 +70,11 @@ public class AppSettings
     public double WindowHeight { get; set; } = 720;
     
     /// <summary>
+    /// Whether the fullscreen channel list is on the right side (false = left, true = right)
+    /// </summary>
+    public bool ChannelListOnRight { get; set; } = false;
+    
+    /// <summary>
     /// Custom channel settings (keyed by channel name + URL hash)
     /// </summary>
     public Dictionary<string, ChannelCustomization> ChannelCustomizations { get; set; } = new();

@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
 using IPTVPlayer.Models;
+using IPTVPlayer.Services;
 using IPTVPlayer.ViewModels;
 
 namespace IPTVPlayer.Views;
@@ -11,6 +12,7 @@ namespace IPTVPlayer.Views;
 public partial class FullscreenOverlayWindow : Window
 {
     private MainViewModel? _viewModel;
+    private SettingsService? _settingsService;
     private DispatcherTimer? _hideTimer;
     private DispatcherTimer? _mouseCheckTimer;
     private DispatcherTimer? _clockTimer;
@@ -25,6 +27,8 @@ public partial class FullscreenOverlayWindow : Window
     private List<Channel> _circularItems = new();
     private bool _isRecentering = false;
     private bool _suppressSelectionChanged = false;
+    private bool _selectionFromOverlayClick = false; // true when user clicked directly on the channel list
+    private int _manualSelectedIndex = -1; // Manually tracked selected index (avoids WPF duplicate-item bugs)
 
     public event EventHandler? ExitFullscreenRequested;
     public event EventHandler? MouseActivity;
@@ -93,23 +97,23 @@ public partial class FullscreenOverlayWindow : Window
             string icon;
             if (isCharging)
             {
-                // Charging icons (with lightning bolt) at different levels
-                icon = percent > 90 ? "\uEA93"   // Charging full
-                     : percent > 70 ? "\uEA92"   // Charging 80
-                     : percent > 50 ? "\uEA91"   // Charging 60
-                     : percent > 30 ? "\uEA90"   // Charging 40
-                     : percent > 10 ? "\uEA8F"   // Charging 20
-                     : "\uEA8E";                  // Charging low
+                // BatteryCharging0-10: E85A-E862, E83E, EA93
+                icon = percent > 90 ? "\uEA93"   // BatteryCharging10
+                     : percent > 70 ? "\uE862"   // BatteryCharging8
+                     : percent > 50 ? "\uE860"   // BatteryCharging6
+                     : percent > 30 ? "\uE85E"   // BatteryCharging4
+                     : percent > 10 ? "\uE85C"   // BatteryCharging2
+                     : "\uE85A";                  // BatteryCharging0
             }
             else
             {
-                // Battery icons (no charging) at different levels
-                icon = percent > 90 ? "\uE83F"   // Full
-                     : percent > 70 ? "\uE83E"   // 80
-                     : percent > 50 ? "\uE83D"   // 60
-                     : percent > 30 ? "\uE83C"   // 40
-                     : percent > 10 ? "\uE83B"   // 20
-                     : "\uE850";                  // Low / critical
+                // Battery0-10: E850-E859, E83F
+                icon = percent > 90 ? "\uE83F"   // Battery10
+                     : percent > 70 ? "\uE859"   // Battery9
+                     : percent > 50 ? "\uE857"   // Battery7
+                     : percent > 30 ? "\uE855"   // Battery5
+                     : percent > 10 ? "\uE853"   // Battery3
+                     : "\uE850";                  // Battery0
             }
 
             BatteryIcon.Text = icon;
@@ -170,6 +174,10 @@ public partial class FullscreenOverlayWindow : Window
     {
         _viewModel = viewModel;
         DataContext = viewModel;
+        
+        // Load sidebar position preference
+        _settingsService = new SettingsService();
+        ApplySidebarPosition(_settingsService.Settings.ChannelListOnRight);
         
         // Listen for channel list changes to rebuild circular list.
         // FilterChannels() replaces the entire ObservableCollection, so we must
@@ -269,6 +277,7 @@ public partial class FullscreenOverlayWindow : Window
     public void ShowOverlays()
     {
         ControlBarPanel.Visibility = Visibility.Visible;
+        bool onRight = _settingsService?.Settings.ChannelListOnRight ?? false;
         SidebarTransform.X = 0; // Show sidebar
         _overlaysVisible = true;
         ResetHideTimer();
@@ -277,7 +286,8 @@ public partial class FullscreenOverlayWindow : Window
     public void HideOverlays()
     {
         ControlBarPanel.Visibility = Visibility.Collapsed;
-        SidebarTransform.X = -320; // Hide sidebar
+        bool onRight = _settingsService?.Settings.ChannelListOnRight ?? false;
+        SidebarTransform.X = onRight ? 320 : -320; // Hide sidebar off-screen
         _overlaysVisible = false;
         _lastHideTime = DateTime.Now; // Record when we hid, to prevent immediate re-show
         
@@ -313,6 +323,36 @@ public partial class FullscreenOverlayWindow : Window
         ResetHideTimer();
     }
 
+    private void ToggleSidebarPosition_Click(object sender, RoutedEventArgs e)
+    {
+        if (_settingsService == null) return;
+        bool newValue = !_settingsService.Settings.ChannelListOnRight;
+        _settingsService.Settings.ChannelListOnRight = newValue;
+        _settingsService.Save();
+        ApplySidebarPosition(newValue);
+        ResetHideTimer();
+    }
+
+    private void ApplySidebarPosition(bool onRight)
+    {
+        if (onRight)
+        {
+            SidebarPanel.HorizontalAlignment = System.Windows.HorizontalAlignment.Right;
+            SidebarPanel.CornerRadius = new CornerRadius(12, 0, 0, 12);
+            // Arrow pointing left (move to left)
+            ToggleSidebarIcon.Text = "\uE72B";
+            ToggleSidebarPositionButton.ToolTip = "Move channel list to left side";
+        }
+        else
+        {
+            SidebarPanel.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
+            SidebarPanel.CornerRadius = new CornerRadius(0, 12, 12, 0);
+            // Arrow pointing right (move to right)
+            ToggleSidebarIcon.Text = "\uE72A";
+            ToggleSidebarPositionButton.ToolTip = "Move channel list to right side";
+        }
+    }
+
     private void CloseSidebar_Click(object sender, RoutedEventArgs e)
     {
         // Hide everything
@@ -334,6 +374,11 @@ public partial class FullscreenOverlayWindow : Window
         if (_suppressSelectionChanged) return;
         if (e.AddedItems.Count > 0 && e.AddedItems[0] is Channel channel)
         {
+            // Track the actual clicked index
+            _manualSelectedIndex = ChannelList.SelectedIndex;
+            // Mark that selection came from the overlay list click,
+            // so SyncSelectedChannel won't scroll the list
+            _selectionFromOverlayClick = true;
             ChannelSelected?.Invoke(this, channel);
             ResetHideTimer();
         }
@@ -371,14 +416,11 @@ public partial class FullscreenOverlayWindow : Window
             // Map to position within middle copy
             double newOffset = middleStart + (currentOffset % oneCopyHeight);
             
-            // Preserve selection
-            var selectedChannel = ChannelList.SelectedItem as Channel;
+            // Preserve selection using manually tracked index
             int selectedIndexInCopy = -1;
-            if (selectedChannel != null)
+            if (_manualSelectedIndex >= 0 && channels.Count > 0)
             {
-                selectedIndexInCopy = channels.IndexOf(selectedChannel) >= 0 
-                    ? channels.IndexOf(selectedChannel)
-                    : ChannelList.SelectedIndex % channels.Count;
+                selectedIndexInCopy = _manualSelectedIndex % channels.Count;
             }
 
             scrollViewer.ScrollToVerticalOffset(newOffset);
@@ -387,9 +429,7 @@ public partial class FullscreenOverlayWindow : Window
             if (selectedIndexInCopy >= 0)
             {
                 int middleCopyIndex = channels.Count + selectedIndexInCopy;
-                _suppressSelectionChanged = true;
-                ChannelList.SelectedIndex = middleCopyIndex;
-                _suppressSelectionChanged = false;
+                SetManualSelection(middleCopyIndex);
             }
 
             _isRecentering = false;
@@ -438,6 +478,8 @@ public partial class FullscreenOverlayWindow : Window
 
     /// <summary>
     /// Sync the overlay channel list selection to match the ViewModel's SelectedChannel.
+    /// If the selection came from a direct click on the overlay list, don't scroll.
+    /// If it came from prev/next buttons, scroll to center the selected channel.
     /// </summary>
     private void SyncSelectedChannel()
     {
@@ -447,14 +489,81 @@ public partial class FullscreenOverlayWindow : Window
         if (selected == null || channels.Count == 0) return;
 
         int idx = channels.IndexOf(selected);
-        if (idx >= 0)
+        if (idx < 0) return;
+
+        int middleIndex = channels.Count + idx;
+        SetManualSelection(middleIndex);
+
+        if (_selectionFromOverlayClick)
         {
-            int middleIndex = channels.Count + idx;
-            _suppressSelectionChanged = true;
-            ChannelList.SelectedIndex = middleIndex;
-            ChannelList.ScrollIntoView(ChannelList.SelectedItem);
-            _suppressSelectionChanged = false;
+            // User clicked directly on the list — no scrolling needed
+            _selectionFromOverlayClick = false;
+            return;
         }
+
+        // Prev/next button or external change — scroll to center the item
+        ScrollToCenter(middleIndex);
+    }
+
+    /// <summary>
+    /// Manually set the selected item by index, working around WPF's inability
+    /// to reliably select duplicate items in a ListBox.
+    /// Directly sets IsSelected on the target ListBoxItem container.
+    /// </summary>
+    private void SetManualSelection(int index)
+    {
+        _suppressSelectionChanged = true;
+
+        // Clear previous manual selection
+        if (_manualSelectedIndex >= 0 && _manualSelectedIndex < _circularItems.Count)
+        {
+            if (ChannelList.ItemContainerGenerator.ContainerFromIndex(_manualSelectedIndex) is ListBoxItem oldItem)
+            {
+                oldItem.IsSelected = false;
+            }
+        }
+
+        // Also clear any WPF-managed selection
+        ChannelList.SelectedIndex = -1;
+
+        // Apply new selection
+        _manualSelectedIndex = index;
+        if (index >= 0 && index < _circularItems.Count)
+        {
+            if (ChannelList.ItemContainerGenerator.ContainerFromIndex(index) is ListBoxItem newItem)
+            {
+                newItem.IsSelected = true;
+            }
+            else
+            {
+                // Container not yet generated — defer until layout is ready
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+                {
+                    if (ChannelList.ItemContainerGenerator.ContainerFromIndex(index) is ListBoxItem item)
+                    {
+                        item.IsSelected = true;
+                    }
+                });
+            }
+        }
+
+        _suppressSelectionChanged = false;
+    }
+
+    /// <summary>
+    /// Scrolls the channel list so that the item at the given index is centered vertically.
+    /// </summary>
+    private void ScrollToCenter(int index)
+    {
+        var scrollViewer = FindScrollViewer(ChannelList);
+        if (scrollViewer == null || scrollViewer.ScrollableHeight <= 0) return;
+
+        // Each item should have the same height; estimate from total
+        double itemHeight = scrollViewer.ExtentHeight / _circularItems.Count;
+        double itemTop = index * itemHeight;
+        double centeredOffset = itemTop - (scrollViewer.ViewportHeight / 2) + (itemHeight / 2);
+        centeredOffset = Math.Max(0, Math.Min(centeredOffset, scrollViewer.ScrollableHeight));
+        scrollViewer.ScrollToVerticalOffset(centeredOffset);
     }
 
     private static ScrollViewer? FindScrollViewer(DependencyObject parent)

@@ -135,7 +135,11 @@
                             <!-- Visibility Toggle -->
                             <CheckBox Grid.Column="1" IsChecked="{Binding IsHidden, Converter={StaticResource InverseBoolConverter}}" 
                                       VerticalAlignment="Center" Margin="0,0,8,0"
-                                      ToolTip="Show/Hide channel"/>
+                                      ToolTip="Show/Hide channel">
+                                <CheckBox.LayoutTransform>
+                                    <ScaleTransform ScaleX="1.4" ScaleY="1.4"/>
+                                </CheckBox.LayoutTransform>
+                            </CheckBox>
                             
                             <!-- Channel Logo -->
                             <Border Grid.Column="2" Width="40" Height="40" CornerRadius="4" Background="#1E1E1E" Margin="0,0,8,0">
