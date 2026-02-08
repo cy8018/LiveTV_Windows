@@ -313,7 +313,8 @@
                     </Button>
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="20,0" Orientation="Horizontal">
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="20,0" Orientation="Horizontal"
+                            Visibility="{Binding CurrentChannel, Converter={StaticResource NullToVisibilityConverter}}">
                     <Button Style="{StaticResource IconButton}" ToolTip="Previous Source" Command="{Binding TryPreviousSourceCommand}"
                             Visibility="{Binding CurrentChannel.SourceCount, Converter={StaticResource GreaterThanOneToVisibilityConverter}}" Margin="0,0,12,0">
                         <TextBlock Text="&#xE76B;" FontFamily="Segoe MDL2 Assets" FontSize="20"/>
