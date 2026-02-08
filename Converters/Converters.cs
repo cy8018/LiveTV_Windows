@@ -92,3 +92,42 @@ public class InverseBoolConverter : IValueConverter
         return false;
     }
 }
+
+/// <summary>
+/// MultiValueConverter: Visible only when IsPlaying=true AND IsLoading=false.
+/// Used to hide the VLC video HWND during loading so the WPF loading overlay is visible.
+/// </summary>
+public class PlayingAndNotLoadingConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (values.Length >= 2 && values[0] is bool isPlaying && values[1] is bool isLoading)
+        {
+            return (isPlaying && !isLoading) ? Visibility.Visible : Visibility.Collapsed;
+        }
+        return Visibility.Collapsed;
+    }
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// Converts an integer to Visibility: Visible if > 1, Collapsed otherwise
+/// </summary>
+public class GreaterThanOneToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is int intValue)
+            return intValue > 1 ? Visibility.Visible : Visibility.Collapsed;
+        return Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}

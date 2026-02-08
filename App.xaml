@@ -13,6 +13,8 @@
             <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
             <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
             <converters:AddOneConverter x:Key="AddOneConverter"/>
+            <converters:GreaterThanOneToVisibilityConverter x:Key="GreaterThanOneToVisibilityConverter"/>
+            <converters:PlayingAndNotLoadingConverter x:Key="PlayingAndNotLoadingConverter"/>
             <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
         </ResourceDictionary>
     </Application.Resources>

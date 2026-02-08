@@ -274,12 +274,18 @@ public partial class FullscreenOverlayWindow : Window
         Height = height;
     }
 
+    private DateTime _lastShowTime = DateTime.MinValue;
+    private const int ShowCooldownMs = 500; // Ignore channel selections for 500ms after showing
+
     public void ShowOverlays()
     {
         ControlBarPanel.Visibility = Visibility.Visible;
-        bool onRight = _settingsService?.Settings.ChannelListOnRight ?? false;
-        SidebarTransform.X = 0; // Show sidebar
+        if (_sidebarVisible)
+        {
+            SidebarTransform.X = 0; // Show sidebar
+        }
         _overlaysVisible = true;
+        _lastShowTime = DateTime.Now;
         ResetHideTimer();
     }
 
@@ -289,6 +295,7 @@ public partial class FullscreenOverlayWindow : Window
         bool onRight = _settingsService?.Settings.ChannelListOnRight ?? false;
         SidebarTransform.X = onRight ? 320 : -320; // Hide sidebar off-screen
         _overlaysVisible = false;
+        // Note: _sidebarVisible is NOT reset here — it's a persistent user preference
         _lastHideTime = DateTime.Now; // Record when we hid, to prevent immediate re-show
         
         // Update last mouse position so the mouse check timer doesn't immediately show overlays again
@@ -317,9 +324,23 @@ public partial class FullscreenOverlayWindow : Window
         HideOverlays();
     }
 
+    private bool _sidebarVisible = true;
+
     private void ShowChannels_Click(object sender, RoutedEventArgs e)
     {
-        // Sidebar is always shown with overlays, just reset the timer
+        if (_sidebarVisible)
+        {
+            // Hide sidebar
+            bool onRight = _settingsService?.Settings.ChannelListOnRight ?? false;
+            SidebarTransform.X = onRight ? 320 : -320;
+            _sidebarVisible = false;
+        }
+        else
+        {
+            // Show sidebar
+            SidebarTransform.X = 0;
+            _sidebarVisible = true;
+        }
         ResetHideTimer();
     }
 
@@ -359,6 +380,11 @@ public partial class FullscreenOverlayWindow : Window
         HideOverlays();
     }
 
+    private void Overlay_TouchActivity(object sender, TouchEventArgs e)
+    {
+        ResetHideTimer();
+    }
+
     private void ExitFullscreen_Click(object sender, RoutedEventArgs e)
     {
         ExitFullscreenRequested?.Invoke(this, EventArgs.Empty);
@@ -372,6 +398,16 @@ public partial class FullscreenOverlayWindow : Window
     private void ChannelList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_suppressSelectionChanged) return;
+        // Suppress channel switching during the cooldown after overlay was just shown
+        if ((DateTime.Now - _lastShowTime).TotalMilliseconds < ShowCooldownMs)
+        {
+            // Revert visual selection back to the previously selected index
+            _suppressSelectionChanged = true;
+            if (_manualSelectedIndex >= 0)
+                ChannelList.SelectedIndex = _manualSelectedIndex;
+            _suppressSelectionChanged = false;
+            return;
+        }
         if (e.AddedItems.Count > 0 && e.AddedItems[0] is Channel channel)
         {
             // Track the actual clicked index
@@ -396,6 +432,12 @@ public partial class FullscreenOverlayWindow : Window
 
     private void ChannelList_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
+        // Any scroll counts as activity — keep overlay visible
+        if (e.VerticalChange != 0 || e.HorizontalChange != 0)
+        {
+            ResetHideTimer();
+        }
+
         if (_isRecentering || _viewModel == null) return;
         var channels = _viewModel.FilteredChannels;
         if (channels.Count == 0) return;
@@ -488,18 +530,20 @@ public partial class FullscreenOverlayWindow : Window
         var selected = _viewModel.SelectedChannel;
         if (selected == null || channels.Count == 0) return;
 
+        if (_selectionFromOverlayClick)
+        {
+            // User clicked directly on the list — selection is already correct at the
+            // clicked index. Don't call SetManualSelection which would clear the visible
+            // selection and try to re-select in the middle copy (possibly off-screen).
+            _selectionFromOverlayClick = false;
+            return;
+        }
+
         int idx = channels.IndexOf(selected);
         if (idx < 0) return;
 
         int middleIndex = channels.Count + idx;
         SetManualSelection(middleIndex);
-
-        if (_selectionFromOverlayClick)
-        {
-            // User clicked directly on the list — no scrolling needed
-            _selectionFromOverlayClick = false;
-            return;
-        }
 
         // Prev/next button or external change — scroll to center the item
         ScrollToCenter(middleIndex);
@@ -539,10 +583,12 @@ public partial class FullscreenOverlayWindow : Window
                 // Container not yet generated — defer until layout is ready
                 Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
                 {
+                    _suppressSelectionChanged = true;
                     if (ChannelList.ItemContainerGenerator.ContainerFromIndex(index) is ListBoxItem item)
                     {
                         item.IsSelected = true;
                     }
+                    _suppressSelectionChanged = false;
                 });
             }
         }
@@ -589,6 +635,32 @@ public partial class FullscreenOverlayWindow : Window
         MouseActivity?.Invoke(this, EventArgs.Empty);
     }
 
+    protected override void OnPreviewMouseDown(MouseButtonEventArgs e)
+    {
+        // If overlays are hidden, the first click should only wake the overlay, not perform actions
+        if (!_overlaysVisible)
+        {
+            ShowOverlays();
+            MouseActivity?.Invoke(this, EventArgs.Empty);
+            e.Handled = true; // Swallow so channel list doesn't receive the click
+            return;
+        }
+        base.OnPreviewMouseDown(e);
+    }
+
+    protected override void OnPreviewTouchDown(TouchEventArgs e)
+    {
+        // If overlays are hidden, the first touch should only wake the overlay, not perform actions
+        if (!_overlaysVisible)
+        {
+            ShowOverlays();
+            MouseActivity?.Invoke(this, EventArgs.Empty);
+            e.Handled = true; // Swallow so channel list doesn't receive the touch
+            return;
+        }
+        base.OnPreviewTouchDown(e);
+    }
+
     protected override void OnMouseDown(MouseButtonEventArgs e)
     {
         base.OnMouseDown(e);
@@ -599,14 +671,7 @@ public partial class FullscreenOverlayWindow : Window
         if (IsClickOnTransparentArea(element))
         {
             // Single click/tap on video: just reset the idle timer (keep overlay visible)
-            if (_overlaysVisible)
-            {
-                ResetHideTimer();
-            }
-            else
-            {
-                ShowOverlays();
-            }
+            ResetHideTimer();
         }
         // Don't reset timer when clicking on overlay elements - let it auto-hide
     }
@@ -614,11 +679,7 @@ public partial class FullscreenOverlayWindow : Window
     protected override void OnTouchDown(TouchEventArgs e)
     {
         base.OnTouchDown(e);
-        // Only show overlays if hidden, don't reset timer
-        if (!_overlaysVisible)
-        {
-            ShowOverlays();
-        }
+        ResetHideTimer();
         MouseActivity?.Invoke(this, EventArgs.Empty);
     }
 

@@ -35,6 +35,7 @@
         <!-- Custom Title Bar -->
         <Grid Grid.Row="0" Background="{StaticResource PrimaryBrush}">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
@@ -45,8 +46,14 @@
                 <TextBlock Text="Live TV" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
             </StackPanel>
             
+            <!-- Playing Info (Center) -->
+            <TextBlock Grid.Column="1" Text="{Binding StatusMessage}" 
+                       Foreground="{StaticResource TextSecondaryBrush}" FontSize="13"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"/>
+            
             <!-- Window Buttons -->
-            <StackPanel Grid.Column="1" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+            <StackPanel Grid.Column="2" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
                 <Button x:Name="MinimizeButton" Click="MinimizeButton_Click" Width="48" Height="48" Background="Transparent" BorderThickness="0" Cursor="Hand">
                     <TextBlock Text="&#xE949;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{StaticResource TextBrush}"/>
                     <Button.Style>
@@ -125,7 +132,7 @@
             </Grid.RowDefinitions>
 
         <!-- Sidebar -->
-        <Grid x:Name="Sidebar" Grid.Column="0" Grid.RowSpan="2" Background="{StaticResource SecondaryBrush}">
+        <Grid x:Name="Sidebar" Grid.Column="0" Background="{StaticResource SecondaryBrush}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
@@ -187,14 +194,21 @@
                         <TextBlock Text="Edit Channels" FontSize="14" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
-                <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="5,5,5,0"/>
+
             </StackPanel>
         </Grid>
 
         <!-- Video Area with LibVLCSharp -->
         <Grid Grid.Column="1" Grid.Row="0" Background="Black">
-            <!-- VLC Video View - Only visible when playing -->
-            <Border Background="Black" Visibility="{Binding IsPlaying, Converter={StaticResource BoolToVisibilityConverter}}">
+            <!-- VLC Video View - Only visible when playing AND not loading -->
+            <!-- VLC renders via a separate HWND on top of WPF, so we must collapse it to show the loading overlay -->
+            <Border Background="Black">
+                <Border.Visibility>
+                    <MultiBinding Converter="{StaticResource PlayingAndNotLoadingConverter}">
+                        <Binding Path="IsPlaying"/>
+                        <Binding Path="IsLoading"/>
+                    </MultiBinding>
+                </Border.Visibility>
                 <vlc:VideoView x:Name="VideoView" MediaPlayer="{Binding MediaPlayer}" Background="Black"/>
             </Border>
             
@@ -212,27 +226,51 @@
             <!-- Loading/Buffering Overlay -->
             <Border Background="#CC000000" Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                    <!-- Spinning circle -->
-                    <Grid Width="60" Height="60" Margin="0,0,0,20">
-                        <Ellipse Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="4" Opacity="0.3"/>
-                        <Ellipse x:Name="LoadingSpinner" Stroke="{StaticResource AccentBrush}" StrokeThickness="4" 
-                                 StrokeDashArray="2 4" RenderTransformOrigin="0.5,0.5">
-                            <Ellipse.RenderTransform>
-                                <RotateTransform x:Name="SpinnerRotation"/>
-                            </Ellipse.RenderTransform>
+                    <!-- Pulsing dots -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,20">
+                        <Ellipse x:Name="Dot1" Width="12" Height="12" Fill="{StaticResource AccentBrush}" Margin="4,0" Opacity="0.3" RenderTransformOrigin="0.5,0.5">
+                            <Ellipse.RenderTransform><ScaleTransform x:Name="Dot1Scale" ScaleX="1" ScaleY="1"/></Ellipse.RenderTransform>
                             <Ellipse.Triggers>
                                 <EventTrigger RoutedEvent="Loaded">
                                     <BeginStoryboard>
                                         <Storyboard RepeatBehavior="Forever">
-                                            <DoubleAnimation Storyboard.TargetName="SpinnerRotation" 
-                                                           Storyboard.TargetProperty="Angle" 
-                                                           From="0" To="360" Duration="0:0:1"/>
+                                            <DoubleAnimation Storyboard.TargetName="Dot1" Storyboard.TargetProperty="Opacity" From="0.3" To="1" Duration="0:0:0.3" BeginTime="0:0:0" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="Dot1Scale" Storyboard.TargetProperty="ScaleX" From="1" To="1.4" Duration="0:0:0.3" BeginTime="0:0:0" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="Dot1Scale" Storyboard.TargetProperty="ScaleY" From="1" To="1.4" Duration="0:0:0.3" BeginTime="0:0:0" AutoReverse="True"/>
                                         </Storyboard>
                                     </BeginStoryboard>
                                 </EventTrigger>
                             </Ellipse.Triggers>
                         </Ellipse>
-                    </Grid>
+                        <Ellipse x:Name="Dot2" Width="12" Height="12" Fill="{StaticResource AccentBrush}" Margin="4,0" Opacity="0.3" RenderTransformOrigin="0.5,0.5">
+                            <Ellipse.RenderTransform><ScaleTransform x:Name="Dot2Scale" ScaleX="1" ScaleY="1"/></Ellipse.RenderTransform>
+                            <Ellipse.Triggers>
+                                <EventTrigger RoutedEvent="Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever">
+                                            <DoubleAnimation Storyboard.TargetName="Dot2" Storyboard.TargetProperty="Opacity" From="0.3" To="1" Duration="0:0:0.3" BeginTime="0:0:0.15" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="Dot2Scale" Storyboard.TargetProperty="ScaleX" From="1" To="1.4" Duration="0:0:0.3" BeginTime="0:0:0.15" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="Dot2Scale" Storyboard.TargetProperty="ScaleY" From="1" To="1.4" Duration="0:0:0.3" BeginTime="0:0:0.15" AutoReverse="True"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Ellipse.Triggers>
+                        </Ellipse>
+                        <Ellipse x:Name="Dot3" Width="12" Height="12" Fill="{StaticResource AccentBrush}" Margin="4,0" Opacity="0.3" RenderTransformOrigin="0.5,0.5">
+                            <Ellipse.RenderTransform><ScaleTransform x:Name="Dot3Scale" ScaleX="1" ScaleY="1"/></Ellipse.RenderTransform>
+                            <Ellipse.Triggers>
+                                <EventTrigger RoutedEvent="Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever">
+                                            <DoubleAnimation Storyboard.TargetName="Dot3" Storyboard.TargetProperty="Opacity" From="0.3" To="1" Duration="0:0:0.3" BeginTime="0:0:0.3" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="Dot3Scale" Storyboard.TargetProperty="ScaleX" From="1" To="1.4" Duration="0:0:0.3" BeginTime="0:0:0.3" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="Dot3Scale" Storyboard.TargetProperty="ScaleY" From="1" To="1.4" Duration="0:0:0.3" BeginTime="0:0:0.3" AutoReverse="True"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Ellipse.Triggers>
+                        </Ellipse>
+                    </StackPanel>
                     <TextBlock Text="{Binding LoadingText, FallbackValue='Loading...'}" 
                                Foreground="{StaticResource TextBrush}" FontSize="18" FontWeight="SemiBold" 
                                HorizontalAlignment="Center"/>
@@ -249,7 +287,7 @@
         </Grid>
 
         <!-- Control Bar (Normal Mode) -->
-        <Border x:Name="ControlBar" Grid.Column="1" Grid.Row="1" Background="{StaticResource SecondaryBrush}" Padding="15,12">
+        <Border x:Name="ControlBar" Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="1" Background="{StaticResource SecondaryBrush}" Padding="15,12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -258,6 +296,9 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <Button x:Name="ToggleSidebarButton" Style="{StaticResource IconButton}" ToolTip="Toggle Channel List" Click="ToggleSidebar_Click" Margin="0,0,8,0">
+                        <TextBlock x:Name="ToggleSidebarIcon" Text="&#xE8FD;" FontFamily="Segoe MDL2 Assets" FontSize="20"/>
+                    </Button>
                     <Button Style="{StaticResource IconButton}" ToolTip="Previous Channel" Command="{Binding PreviousChannelCommand}">
                         <TextBlock Text="&#xE892;" FontFamily="Segoe MDL2 Assets" FontSize="20"/>
                     </Button>
@@ -274,12 +315,12 @@
 
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="20,0" Orientation="Horizontal">
                     <Button Style="{StaticResource IconButton}" ToolTip="Previous Source" Command="{Binding TryPreviousSourceCommand}"
-                            Visibility="{Binding CurrentChannel, Converter={StaticResource NullToVisibilityConverter}}" Margin="0,0,12,0">
+                            Visibility="{Binding CurrentChannel.SourceCount, Converter={StaticResource GreaterThanOneToVisibilityConverter}}" Margin="0,0,12,0">
                         <TextBlock Text="&#xE76B;" FontFamily="Segoe MDL2 Assets" FontSize="20"/>
                     </Button>
                     <TextBlock Text="{Binding CurrentChannel.Name, FallbackValue='No channel selected'}" Foreground="{StaticResource TextBrush}" FontSize="17" TextTrimming="CharacterEllipsis" MaxWidth="350" VerticalAlignment="Center"/>
                     <Border BorderBrush="{StaticResource TextSecondaryBrush}" BorderThickness="1" CornerRadius="10" Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center"
-                            Visibility="{Binding CurrentChannel, Converter={StaticResource NullToVisibilityConverter}}">
+                            Visibility="{Binding CurrentChannel.SourceCount, Converter={StaticResource GreaterThanOneToVisibilityConverter}}">
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" FontSize="12">
                             <TextBlock.Text>
                                 <MultiBinding StringFormat="{}{0}/{1}">
@@ -290,7 +331,7 @@
                         </TextBlock>
                     </Border>
                     <Button Style="{StaticResource IconButton}" ToolTip="Next Source" Command="{Binding TryNextSourceCommand}"
-                            Visibility="{Binding CurrentChannel, Converter={StaticResource NullToVisibilityConverter}}" Margin="12,0,0,0">
+                            Visibility="{Binding CurrentChannel.SourceCount, Converter={StaticResource GreaterThanOneToVisibilityConverter}}" Margin="12,0,0,0">
                         <TextBlock Text="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="20"/>
                     </Button>
                 </StackPanel>

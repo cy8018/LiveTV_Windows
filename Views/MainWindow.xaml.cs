@@ -651,6 +651,22 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ToggleSidebar_Click(object sender, RoutedEventArgs e)
+    {
+        if (Sidebar.Visibility == Visibility.Visible)
+        {
+            Sidebar.Visibility = Visibility.Collapsed;
+            SidebarColumn.Width = new GridLength(0);
+            ToggleSidebarIcon.Text = "\uE8FD"; // Show channels icon
+        }
+        else
+        {
+            Sidebar.Visibility = Visibility.Visible;
+            SidebarColumn.Width = new GridLength(200);
+            ToggleSidebarIcon.Text = "\uE8FD"; // Show channels icon
+        }
+    }
+
     private void Fullscreen_Click(object sender, RoutedEventArgs e)
     {
         ToggleFullscreen();
@@ -717,11 +733,21 @@ public partial class MainWindow : Window
         // First set to normal to ensure position changes take effect
         WindowState = WindowState.Normal;
         
-        // Position window to cover entire screen including taskbar
-        Left = 0;
-        Top = 0;
-        Width = SystemParameters.PrimaryScreenWidth;
-        Height = SystemParameters.PrimaryScreenHeight;
+        // Get the screen the window is currently on
+        var windowInteropHelper = new System.Windows.Interop.WindowInteropHelper(this);
+        var screen = System.Windows.Forms.Screen.FromHandle(windowInteropHelper.Handle);
+        var bounds = screen.Bounds;
+        
+        // Convert physical pixels to WPF DIPs (device-independent pixels)
+        var source = PresentationSource.FromVisual(this);
+        double dpiScaleX = source?.CompositionTarget?.TransformFromDevice.M11 ?? 1.0;
+        double dpiScaleY = source?.CompositionTarget?.TransformFromDevice.M22 ?? 1.0;
+        
+        // Position window to cover entire current screen including taskbar
+        Left = bounds.Left * dpiScaleX;
+        Top = bounds.Top * dpiScaleY;
+        Width = bounds.Width * dpiScaleX;
+        Height = bounds.Height * dpiScaleY;
 
         _isFullscreen = true;
         
@@ -733,13 +759,13 @@ public partial class MainWindow : Window
         {
             CreateOverlayWindow();
             
-            // Update overlay position to match maximized window
+            // Update overlay position to match fullscreen window on current screen
             if (_overlayWindow != null)
             {
-                _overlayWindow.Left = 0;
-                _overlayWindow.Top = 0;
-                _overlayWindow.Width = SystemParameters.PrimaryScreenWidth;
-                _overlayWindow.Height = SystemParameters.PrimaryScreenHeight;
+                _overlayWindow.Left = Left;
+                _overlayWindow.Top = Top;
+                _overlayWindow.Width = Width;
+                _overlayWindow.Height = Height;
             }
             
             ShowOverlay();
@@ -756,7 +782,7 @@ public partial class MainWindow : Window
         
         // Show normal UI
         Sidebar.Visibility = Visibility.Visible;
-        SidebarColumn.Width = new GridLength(300);
+        SidebarColumn.Width = new GridLength(200);
         ControlBar.Visibility = Visibility.Visible;
         ControlBarRow.Height = GridLength.Auto;
         

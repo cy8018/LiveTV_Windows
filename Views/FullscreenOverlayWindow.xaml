@@ -15,7 +15,7 @@
 
     <Window.Resources>
         <local:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
-        <local:AddOneConverter x:Key="AddOneConverter"/>
+        <local:GreaterThanOneToVisibilityConverter x:Key="GreaterThanOneToVisibilityConverter"/>
 
         <!-- Styles -->
         <Style x:Key="OverlayIconButton" TargetType="Button">
@@ -107,9 +107,6 @@
                             <ContentPresenter/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#40FFFFFF"/>
-                            </Trigger>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="Border" Property="Background" Value="#4CAF50"/>
                             </Trigger>
@@ -136,7 +133,7 @@
                     <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.8" Color="Black"/>
                 </TextBlock.Effect>
             </TextBlock>
-            <TextBlock x:Name="ClockText" Text="" Foreground="#FFFFFF" FontSize="28" FontWeight="SemiBold"
+            <TextBlock x:Name="ClockText" Text="" Foreground="#FFFFFF" FontSize="26" FontWeight="SemiBold"
                        VerticalAlignment="Center" Margin="0,0,12,0">
                 <TextBlock.Effect>
                     <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.8" Color="Black"/>
@@ -151,6 +148,7 @@
 
         <!-- Channel Sidebar -->
         <Border x:Name="SidebarPanel" HorizontalAlignment="Left" VerticalAlignment="Stretch" Width="200" 
+                TouchDown="Overlay_TouchActivity" TouchMove="Overlay_TouchActivity"
                 Background="#E8252526" Margin="0,100,0,100">
             <Border.CornerRadius>
                 <CornerRadius TopRight="12" BottomRight="12" TopLeft="0" BottomLeft="0"/>
@@ -174,7 +172,11 @@
                          SelectionChanged="ChannelList_SelectionChanged"
                          PreviewMouseWheel="ChannelList_PreviewMouseWheel"
                          PreviewKeyDown="ChannelList_PreviewKeyDown"
-                         ScrollViewer.ScrollChanged="ChannelList_ScrollChanged">
+                         ScrollViewer.ScrollChanged="ChannelList_ScrollChanged"
+                         TouchDown="Overlay_TouchActivity" TouchMove="Overlay_TouchActivity"
+                         ScrollViewer.PanningMode="VerticalOnly"
+                         Stylus.IsPressAndHoldEnabled="False"
+                         Stylus.IsFlicksEnabled="False">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <Grid>
@@ -217,7 +219,8 @@
 
         <!-- Control Bar (bottom) -->
         <Border x:Name="ControlBarPanel" VerticalAlignment="Bottom" HorizontalAlignment="Stretch" 
-                Background="#E8252526" Padding="20,15" Visibility="Collapsed">
+                Background="#E8252526" Padding="20,15" Visibility="Collapsed"
+                TouchDown="Overlay_TouchActivity" TouchMove="Overlay_TouchActivity">
             <Border.Effect>
                 <DropShadowEffect BlurRadius="20" ShadowDepth="-5" Opacity="0.5" Direction="90"/>
             </Border.Effect>
@@ -255,12 +258,12 @@
 
                 <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="20,0" Orientation="Horizontal">
                     <Button Style="{StaticResource OverlayIconButton}" ToolTip="Previous Source" Command="{Binding TryPreviousSourceCommand}"
-                            Visibility="{Binding CurrentChannel, Converter={StaticResource NullToVisibilityConverter}}" Margin="0,0,12,0">
+                            Visibility="{Binding CurrentChannel.SourceCount, Converter={StaticResource GreaterThanOneToVisibilityConverter}}" Margin="0,0,12,0">
                         <TextBlock Text="&#xE76B;" FontFamily="Segoe MDL2 Assets" FontSize="20"/>
                     </Button>
                     <TextBlock Text="{Binding CurrentChannel.Name, FallbackValue='No channel selected'}" Foreground="#FFFFFF" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="500" VerticalAlignment="Center"/>
                     <Border BorderBrush="#80FFFFFF" BorderThickness="1" CornerRadius="10" Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center"
-                            Visibility="{Binding CurrentChannel, Converter={StaticResource NullToVisibilityConverter}}">
+                            Visibility="{Binding CurrentChannel.SourceCount, Converter={StaticResource GreaterThanOneToVisibilityConverter}}">
                         <TextBlock Foreground="#80FFFFFF" FontSize="12">
                             <TextBlock.Text>
                                 <MultiBinding StringFormat="{}{0}/{1}">
@@ -271,7 +274,7 @@
                         </TextBlock>
                     </Border>
                     <Button Style="{StaticResource OverlayIconButton}" ToolTip="Next Source" Command="{Binding TryNextSourceCommand}"
-                            Visibility="{Binding CurrentChannel, Converter={StaticResource NullToVisibilityConverter}}" Margin="12,0,0,0">
+                            Visibility="{Binding CurrentChannel.SourceCount, Converter={StaticResource GreaterThanOneToVisibilityConverter}}" Margin="12,0,0,0">
                         <TextBlock Text="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="20"/>
                     </Button>
                 </StackPanel>

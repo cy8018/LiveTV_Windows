@@ -539,12 +539,12 @@ public partial class MainViewModel : ObservableObject
         StatusMessage = $"Loading: {channel.Name}{sourceInfo}";
         CurrentChannel = channel;
 
-        // Let the UI update before doing heavy work
-        await Task.Delay(50);
+        // Push a render frame so WPF paints the loading indicator before Stop() blocks the UI
+        await Application.Current.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
 
         try
         {
-            // Stop current playback first
+            // Stop must run on UI thread (LibVLC D3D11 surface is thread-bound)
             _mediaPlayer.Stop();
 
             // Create and play media on background thread
