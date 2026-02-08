@@ -28,6 +28,7 @@ public partial class FullscreenOverlayWindow : Window
     private bool _isRecentering = false;
     private bool _suppressSelectionChanged = false;
     private bool _selectionFromOverlayClick = false; // true when user clicked directly on the channel list
+    private bool _isCircularMode = false;
     private int _manualSelectedIndex = -1; // Manually tracked selected index (avoids WPF duplicate-item bugs)
 
     public event EventHandler? ExitFullscreenRequested;
@@ -438,7 +439,7 @@ public partial class FullscreenOverlayWindow : Window
             ResetHideTimer();
         }
 
-        if (_isRecentering || _viewModel == null) return;
+        if (!_isCircularMode || _isRecentering || _viewModel == null) return;
         var channels = _viewModel.FilteredChannels;
         if (channels.Count == 0) return;
 
@@ -484,37 +485,58 @@ public partial class FullscreenOverlayWindow : Window
         var channels = _viewModel.FilteredChannels;
         
         _circularItems.Clear();
+        _isCircularMode = false;
         if (channels.Count == 0)
         {
             ChannelList.ItemsSource = null;
             return;
         }
 
-        // Build list with N copies for seamless circular scrolling
-        for (int copy = 0; copy < CircularCopies; copy++)
-        {
-            foreach (var ch in channels)
-            {
-                _circularItems.Add(ch);
-            }
-        }
-
+        // First, set a single copy to measure if it fills the viewport
         _suppressSelectionChanged = true;
-        ChannelList.ItemsSource = _circularItems;
+        ChannelList.ItemsSource = channels;
         _suppressSelectionChanged = false;
 
-        // Scroll to middle copy after layout
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
         {
             var scrollViewer = FindScrollViewer(ChannelList);
-            if (scrollViewer != null && scrollViewer.ScrollableHeight > 0)
+            bool needsCircular = scrollViewer != null && scrollViewer.ScrollableHeight > 0;
+
+            if (!needsCircular)
             {
-                double oneCopyHeight = scrollViewer.ScrollableHeight / (CircularCopies - 1);
-                scrollViewer.ScrollToVerticalOffset(oneCopyHeight);
+                _isCircularMode = false;
+                SyncSelectedChannel();
+                return;
             }
 
-            // Select the current channel in the middle copy
-            SyncSelectedChannel();
+            // Build list with N copies for seamless circular scrolling
+            _circularItems.Clear();
+            for (int copy = 0; copy < CircularCopies; copy++)
+            {
+                foreach (var ch in channels)
+                {
+                    _circularItems.Add(ch);
+                }
+            }
+
+            _suppressSelectionChanged = true;
+            ChannelList.ItemsSource = _circularItems;
+            _suppressSelectionChanged = false;
+            _isCircularMode = true;
+
+            // Scroll to middle copy after layout
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+            {
+                var sv = FindScrollViewer(ChannelList);
+                if (sv != null && sv.ScrollableHeight > 0)
+                {
+                    double oneCopyHeight = sv.ScrollableHeight / (CircularCopies - 1);
+                    sv.ScrollToVerticalOffset(oneCopyHeight);
+                }
+
+                // Select the current channel in the middle copy
+                SyncSelectedChannel();
+            });
         });
     }
 
@@ -542,11 +564,21 @@ public partial class FullscreenOverlayWindow : Window
         int idx = channels.IndexOf(selected);
         if (idx < 0) return;
 
-        int middleIndex = channels.Count + idx;
-        SetManualSelection(middleIndex);
+        if (_isCircularMode)
+        {
+            int middleIndex = channels.Count + idx;
+            SetManualSelection(middleIndex);
 
-        // Prev/next button or external change — scroll to center the item
-        ScrollToCenter(middleIndex);
+            // Prev/next button or external change — scroll to center the item
+            ScrollToCenter(middleIndex);
+        }
+        else
+        {
+            _suppressSelectionChanged = true;
+            ChannelList.SelectedIndex = idx;
+            ChannelList.ScrollIntoView(ChannelList.SelectedItem);
+            _suppressSelectionChanged = false;
+        }
     }
 
     /// <summary>

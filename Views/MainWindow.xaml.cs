@@ -40,6 +40,7 @@ public partial class MainWindow : Window
     private bool _isRecentering = false;
     private bool _suppressSelectionChanged = false;
     private bool _selectionFromListClick = false;
+    private bool _isCircularMode = false;
     private int _manualSelectedIndex = -1;
 
     // Windows API for dark title bar
@@ -614,7 +615,7 @@ public partial class MainWindow : Window
 
     private void ChannelList_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
-        if (_isRecentering || _viewModel == null) return;
+        if (!_isCircularMode || _isRecentering || _viewModel == null) return;
         var channels = _viewModel.FilteredChannels;
         if (channels.Count == 0) return;
 
@@ -651,34 +652,58 @@ public partial class MainWindow : Window
     {
         var channels = _viewModel.FilteredChannels;
         _circularItems.Clear();
+        _isCircularMode = false;
         if (channels.Count == 0)
         {
             ChannelList.ItemsSource = null;
             return;
         }
 
-        for (int copy = 0; copy < CircularCopies; copy++)
-        {
-            foreach (var ch in channels)
-            {
-                _circularItems.Add(ch);
-            }
-        }
-
+        // First, set a single copy to measure if it fills the viewport
         _suppressSelectionChanged = true;
         ChannelList.ItemsSource = null;
-        ChannelList.ItemsSource = _circularItems;
+        ChannelList.ItemsSource = channels;
         _suppressSelectionChanged = false;
 
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
         {
             var scrollViewer = FindListBoxScrollViewer(ChannelList);
-            if (scrollViewer != null && scrollViewer.ScrollableHeight > 0)
+            bool needsCircular = scrollViewer != null && scrollViewer.ScrollableHeight > 0;
+
+            if (!needsCircular)
             {
-                double oneCopyHeight = scrollViewer.ScrollableHeight / (CircularCopies - 1);
-                scrollViewer.ScrollToVerticalOffset(oneCopyHeight);
+                // Channels don't fill the viewport — plain list is fine
+                _isCircularMode = false;
+                SyncWindowSelectedChannel();
+                return;
             }
-            SyncWindowSelectedChannel();
+
+            // Build circular list with N copies
+            _circularItems.Clear();
+            for (int copy = 0; copy < CircularCopies; copy++)
+            {
+                foreach (var ch in channels)
+                {
+                    _circularItems.Add(ch);
+                }
+            }
+
+            _suppressSelectionChanged = true;
+            ChannelList.ItemsSource = null;
+            ChannelList.ItemsSource = _circularItems;
+            _suppressSelectionChanged = false;
+            _isCircularMode = true;
+
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+            {
+                var sv = FindListBoxScrollViewer(ChannelList);
+                if (sv != null && sv.ScrollableHeight > 0)
+                {
+                    double oneCopyHeight = sv.ScrollableHeight / (CircularCopies - 1);
+                    sv.ScrollToVerticalOffset(oneCopyHeight);
+                }
+                SyncWindowSelectedChannel();
+            });
         });
     }
 
@@ -697,8 +722,17 @@ public partial class MainWindow : Window
         int idx = channels.IndexOf(selected);
         if (idx < 0) return;
 
-        int middleIndex = channels.Count + idx;
-        SetWindowManualSelection(middleIndex);
+        if (_isCircularMode)
+        {
+            int middleIndex = channels.Count + idx;
+            SetWindowManualSelection(middleIndex);
+        }
+        else
+        {
+            _suppressSelectionChanged = true;
+            ChannelList.SelectedIndex = idx;
+            _suppressSelectionChanged = false;
+        }
     }
 
     private void SetWindowManualSelection(int index)
