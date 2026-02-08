@@ -554,10 +554,18 @@ public partial class FullscreenOverlayWindow : Window
 
         if (_selectionFromOverlayClick)
         {
-            // User clicked directly on the list — selection is already correct at the
-            // clicked index. Don't call SetManualSelection which would clear the visible
-            // selection and try to re-select in the middle copy (possibly off-screen).
+            // User clicked directly on the list — don't scroll, but still
+            // highlight all copies of the selected channel.
             _selectionFromOverlayClick = false;
+            if (_isCircularMode)
+            {
+                int clickIdx = channels.IndexOf(selected);
+                if (clickIdx >= 0)
+                {
+                    int middleIndex = channels.Count + clickIdx;
+                    SetManualSelection(middleIndex);
+                }
+            }
             return;
         }
 
@@ -589,39 +597,40 @@ public partial class FullscreenOverlayWindow : Window
     private void SetManualSelection(int index)
     {
         _suppressSelectionChanged = true;
+        var channels = _viewModel?.FilteredChannels;
+        int channelCount = channels?.Count ?? 0;
 
-        // Clear previous manual selection
-        if (_manualSelectedIndex >= 0 && _manualSelectedIndex < _circularItems.Count)
+        // Clear all copies of the previously selected channel
+        if (_manualSelectedIndex >= 0 && _manualSelectedIndex < _circularItems.Count && channelCount > 0)
         {
-            if (ChannelList.ItemContainerGenerator.ContainerFromIndex(_manualSelectedIndex) is ListBoxItem oldItem)
+            int oldBase = _manualSelectedIndex % channelCount;
+            for (int copy = 0; copy < CircularCopies; copy++)
             {
-                oldItem.IsSelected = false;
+                int i = oldBase + copy * channelCount;
+                if (i < _circularItems.Count &&
+                    ChannelList.ItemContainerGenerator.ContainerFromIndex(i) is ListBoxItem oldItem)
+                {
+                    oldItem.IsSelected = false;
+                }
             }
         }
 
         // Also clear any WPF-managed selection
         ChannelList.SelectedIndex = -1;
 
-        // Apply new selection
+        // Apply new selection to all copies
         _manualSelectedIndex = index;
-        if (index >= 0 && index < _circularItems.Count)
+        if (index >= 0 && index < _circularItems.Count && channelCount > 0)
         {
-            if (ChannelList.ItemContainerGenerator.ContainerFromIndex(index) is ListBoxItem newItem)
+            int newBase = index % channelCount;
+            for (int copy = 0; copy < CircularCopies; copy++)
             {
-                newItem.IsSelected = true;
-            }
-            else
-            {
-                // Container not yet generated — defer until layout is ready
-                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+                int i = newBase + copy * channelCount;
+                if (i < _circularItems.Count &&
+                    ChannelList.ItemContainerGenerator.ContainerFromIndex(i) is ListBoxItem newItem)
                 {
-                    _suppressSelectionChanged = true;
-                    if (ChannelList.ItemContainerGenerator.ContainerFromIndex(index) is ListBoxItem item)
-                    {
-                        item.IsSelected = true;
-                    }
-                    _suppressSelectionChanged = false;
-                });
+                    newItem.IsSelected = true;
+                }
             }
         }
 

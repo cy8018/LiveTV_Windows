@@ -140,6 +140,7 @@
 
             <ListBox Grid.Row="0" x:Name="ChannelList" Style="{StaticResource ChannelListBox}"
                      ItemContainerStyle="{StaticResource ChannelListBoxItem}"
+                     SelectionMode="Multiple"
                      ScrollViewer.VerticalScrollBarVisibility="Hidden" ScrollViewer.PanningMode="VerticalOnly"
                      ScrollViewer.CanContentScroll="False"
                      VirtualizingStackPanel.IsVirtualizing="False"

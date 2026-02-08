@@ -716,6 +716,15 @@ public partial class MainWindow : Window
         if (_selectionFromListClick)
         {
             _selectionFromListClick = false;
+            if (_isCircularMode)
+            {
+                int clickIdx = channels.IndexOf(selected);
+                if (clickIdx >= 0)
+                {
+                    int middleIndex = channels.Count + clickIdx;
+                    SetWindowManualSelection(middleIndex);
+                }
+            }
             return;
         }
 
@@ -738,35 +747,39 @@ public partial class MainWindow : Window
     private void SetWindowManualSelection(int index)
     {
         _suppressSelectionChanged = true;
+        var channels = _viewModel.FilteredChannels;
+        int channelCount = channels.Count;
 
-        if (_manualSelectedIndex >= 0 && _manualSelectedIndex < _circularItems.Count)
+        // Clear all copies of the previously selected channel
+        if (_manualSelectedIndex >= 0 && _manualSelectedIndex < _circularItems.Count && channelCount > 0)
         {
-            if (ChannelList.ItemContainerGenerator.ContainerFromIndex(_manualSelectedIndex) is ListBoxItem oldItem)
+            int oldBase = _manualSelectedIndex % channelCount;
+            for (int copy = 0; copy < CircularCopies; copy++)
             {
-                oldItem.IsSelected = false;
+                int i = oldBase + copy * channelCount;
+                if (i < _circularItems.Count &&
+                    ChannelList.ItemContainerGenerator.ContainerFromIndex(i) is ListBoxItem oldItem)
+                {
+                    oldItem.IsSelected = false;
+                }
             }
         }
 
         ChannelList.SelectedIndex = -1;
-
         _manualSelectedIndex = index;
-        if (index >= 0 && index < _circularItems.Count)
+
+        // Select all copies of the new channel
+        if (index >= 0 && index < _circularItems.Count && channelCount > 0)
         {
-            if (ChannelList.ItemContainerGenerator.ContainerFromIndex(index) is ListBoxItem newItem)
+            int newBase = index % channelCount;
+            for (int copy = 0; copy < CircularCopies; copy++)
             {
-                newItem.IsSelected = true;
-            }
-            else
-            {
-                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+                int i = newBase + copy * channelCount;
+                if (i < _circularItems.Count &&
+                    ChannelList.ItemContainerGenerator.ContainerFromIndex(i) is ListBoxItem newItem)
                 {
-                    _suppressSelectionChanged = true;
-                    if (ChannelList.ItemContainerGenerator.ContainerFromIndex(index) is ListBoxItem item)
-                    {
-                        item.IsSelected = true;
-                    }
-                    _suppressSelectionChanged = false;
-                });
+                    newItem.IsSelected = true;
+                }
             }
         }
 
@@ -1041,6 +1054,9 @@ public partial class MainWindow : Window
         
         // Update fullscreen icon
         FullscreenIcon.Text = "\uE740"; // Enter fullscreen icon
+
+        // Re-sync windowed channel list (selection may have changed in fullscreen)
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, BuildCircularChannelList);
     }
     
     private void CreateOverlayWindow()

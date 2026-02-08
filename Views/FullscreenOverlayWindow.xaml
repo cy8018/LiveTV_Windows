@@ -166,6 +166,7 @@
 
                 <ListBox Grid.Row="0" x:Name="ChannelList" Background="Transparent" BorderThickness="0"
                          ItemContainerStyle="{StaticResource OverlayChannelListBoxItem}"
+                         SelectionMode="Multiple"
                          ScrollViewer.VerticalScrollBarVisibility="Hidden" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          ScrollViewer.CanContentScroll="False"
                          VirtualizingStackPanel.IsVirtualizing="False"
