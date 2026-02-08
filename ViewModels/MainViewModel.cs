@@ -76,23 +76,27 @@ public partial class MainViewModel : ObservableObject
         
         try
         {
-            // Run heavy native library loading on a background thread
-            // to keep the UI responsive during startup
-            await Task.Run(() =>
+            // Run heavy native library loading AND LibVLC construction on a background thread
+            // to keep the UI responsive during startup (LibVLC plugin scanning can take seconds)
+            var (libVLC, mediaPlayer) = await Task.Run(() =>
             {
                 Core.Initialize();
+                
+                var vlc = new LibVLC(
+                    "--network-caching=3000",
+                    "--live-caching=3000",
+                    "--file-caching=3000",
+                    "--clock-jitter=0",
+                    "--clock-synchro=0",
+                    "--no-video-title-show"
+                );
+                
+                var player = new MediaPlayer(vlc);
+                return (vlc, player);
             });
 
-            _libVLC = new LibVLC(
-                "--network-caching=3000",
-                "--live-caching=3000",
-                "--file-caching=3000",
-                "--clock-jitter=0",
-                "--clock-synchro=0",
-                "--no-video-title-show"
-            );
-            
-            _mediaPlayer = new MediaPlayer(_libVLC);
+            _libVLC = libVLC;
+            _mediaPlayer = mediaPlayer;
             
             // Setup stats timer for showing download speed
             _statsTimer = new DispatcherTimer
@@ -101,8 +105,9 @@ public partial class MainViewModel : ObservableObject
             };
             _statsTimer.Tick += StatsTimer_Tick;
             
-            // Event handlers
-            _mediaPlayer.Playing += (s, e) => Application.Current.Dispatcher.Invoke(() =>
+            // Event handlers — use BeginInvoke (non-blocking) to avoid deadlocks
+            // between VLC threads and the UI thread
+            _mediaPlayer.Playing += (s, e) => Application.Current.Dispatcher.BeginInvoke(() =>
             {
                 IsPlaying = true;
                 HasEverPlayed = true;
@@ -113,7 +118,7 @@ public partial class MainViewModel : ObservableObject
                 StartStatsTimer();
             });
             
-            _mediaPlayer.Paused += (s, e) => Application.Current.Dispatcher.Invoke(() =>
+            _mediaPlayer.Paused += (s, e) => Application.Current.Dispatcher.BeginInvoke(() =>
             {
                 IsPaused = true;
                 PlayPauseIcon = "\uE768";  // Play icon
@@ -121,7 +126,7 @@ public partial class MainViewModel : ObservableObject
                 StopStatsTimer();
             });
             
-            _mediaPlayer.Stopped += (s, e) => Application.Current.Dispatcher.Invoke(() =>
+            _mediaPlayer.Stopped += (s, e) => Application.Current.Dispatcher.BeginInvoke(() =>
             {
                 IsPlaying = false;
                 IsPaused = false;
@@ -130,7 +135,7 @@ public partial class MainViewModel : ObservableObject
                 StopStatsTimer();
             });
             
-            _mediaPlayer.Buffering += (s, e) => Application.Current.Dispatcher.Invoke(() =>
+            _mediaPlayer.Buffering += (s, e) => Application.Current.Dispatcher.BeginInvoke(() =>
             {
                 if (e.Cache < 100)
                 {

@@ -46,18 +46,12 @@
 
             <!-- Content -->
             <Grid Grid.Row="1" Margin="24,20">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="&#xE897;" FontFamily="Segoe MDL2 Assets" FontSize="36" 
-                           Foreground="#0078D4" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                <TextBlock x:Name="MessageText" Grid.Column="1" Text="Are you sure you want to exit Live TV?" 
-                           FontSize="15" Foreground="#E0E0E0" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                <TextBlock x:Name="MessageText" Text="Are you sure you want to exit Live TV?" 
+                           FontSize="15" Foreground="#E0E0E0" TextWrapping="Wrap" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center"/>
             </Grid>
 
             <!-- Buttons -->
-            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="24,0,24,20">
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="24,0,24,20">
                 <Button x:Name="YesButton" Content="Yes" Width="100" Height="36" Margin="0,0,12,0" Click="YesButton_Click"
                         Background="#0078D4" Foreground="#FFFFFF" BorderThickness="0" Cursor="Hand" FontSize="14" FontWeight="SemiBold">
                     <Button.Template>
