@@ -30,6 +30,13 @@ public partial class MainWindow : Window
     private DateTime _lastClickTime = DateTime.MinValue;
     private const int DoubleClickTimeMs = 400;
 
+    // Circular scrolling for windowed channel list
+    private const int CircularCopies = 3;
+    private List<Channel> _circularItems = new();
+    private bool _isRecentering = false;
+    private bool _suppressSelectionChanged = false;
+    private int _manualSelectedIndex = -1;
+
     // Windows API for dark title bar
     [DllImport("dwmapi.dll", PreserveSig = true)]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
@@ -270,7 +277,7 @@ public partial class MainWindow : Window
             };
         }
         
-        // Track MediaPlayer property changes
+        // Track MediaPlayer and channel list property changes
         _viewModel.PropertyChanged += (s, args) =>
         {
             if (args.PropertyName == nameof(MainViewModel.MediaPlayer) && _viewModel.MediaPlayer != null)
@@ -279,6 +286,14 @@ public partial class MainWindow : Window
                 {
                     VideoView.MediaPlayer = _viewModel.MediaPlayer;
                 });
+            }
+            else if (args.PropertyName == nameof(MainViewModel.FilteredChannels))
+            {
+                Dispatcher.BeginInvoke(DispatcherPriority.Background, BuildCircularChannelList);
+            }
+            else if (args.PropertyName == nameof(MainViewModel.SelectedChannel))
+            {
+                Dispatcher.BeginInvoke(DispatcherPriority.Background, SyncWindowSelectedChannel);
             }
         };
         
@@ -579,11 +594,145 @@ public partial class MainWindow : Window
 
     private void ChannelList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        // Single click to play
-        if (ViewModel.SelectedChannel != null)
+        if (_suppressSelectionChanged) return;
+        if (e.AddedItems.Count > 0 && e.AddedItems[0] is Channel channel)
         {
-            ViewModel.PlaySelectedChannel();
+            _manualSelectedIndex = ChannelList.SelectedIndex;
+            _viewModel.SelectedChannel = channel;
+            _viewModel.PlaySelectedChannel();
         }
+    }
+
+    private void ChannelList_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (_isRecentering || _viewModel == null) return;
+        var channels = _viewModel.FilteredChannels;
+        if (channels.Count == 0) return;
+
+        var scrollViewer = FindListBoxScrollViewer(ChannelList);
+        if (scrollViewer == null || scrollViewer.ScrollableHeight <= 0) return;
+
+        double oneCopyHeight = scrollViewer.ScrollableHeight / (CircularCopies - 1);
+
+        if (scrollViewer.VerticalOffset < oneCopyHeight * 0.3 ||
+            scrollViewer.VerticalOffset > oneCopyHeight * 1.7)
+        {
+            _isRecentering = true;
+            double newOffset = oneCopyHeight + (scrollViewer.VerticalOffset % oneCopyHeight);
+
+            int selectedIndexInCopy = -1;
+            if (_manualSelectedIndex >= 0 && channels.Count > 0)
+            {
+                selectedIndexInCopy = _manualSelectedIndex % channels.Count;
+            }
+
+            scrollViewer.ScrollToVerticalOffset(newOffset);
+
+            if (selectedIndexInCopy >= 0)
+            {
+                int middleCopyIndex = channels.Count + selectedIndexInCopy;
+                SetWindowManualSelection(middleCopyIndex);
+            }
+
+            _isRecentering = false;
+        }
+    }
+
+    private void BuildCircularChannelList()
+    {
+        var channels = _viewModel.FilteredChannels;
+        _circularItems.Clear();
+        if (channels.Count == 0)
+        {
+            ChannelList.ItemsSource = null;
+            return;
+        }
+
+        for (int copy = 0; copy < CircularCopies; copy++)
+        {
+            foreach (var ch in channels)
+            {
+                _circularItems.Add(ch);
+            }
+        }
+
+        _suppressSelectionChanged = true;
+        ChannelList.ItemsSource = _circularItems;
+        _suppressSelectionChanged = false;
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            var scrollViewer = FindListBoxScrollViewer(ChannelList);
+            if (scrollViewer != null && scrollViewer.ScrollableHeight > 0)
+            {
+                double oneCopyHeight = scrollViewer.ScrollableHeight / (CircularCopies - 1);
+                scrollViewer.ScrollToVerticalOffset(oneCopyHeight);
+            }
+            SyncWindowSelectedChannel();
+        });
+    }
+
+    private void SyncWindowSelectedChannel()
+    {
+        var channels = _viewModel.FilteredChannels;
+        var selected = _viewModel.SelectedChannel;
+        if (selected == null || channels.Count == 0) return;
+
+        int idx = channels.IndexOf(selected);
+        if (idx < 0) return;
+
+        int middleIndex = channels.Count + idx;
+        SetWindowManualSelection(middleIndex);
+    }
+
+    private void SetWindowManualSelection(int index)
+    {
+        _suppressSelectionChanged = true;
+
+        if (_manualSelectedIndex >= 0 && _manualSelectedIndex < _circularItems.Count)
+        {
+            if (ChannelList.ItemContainerGenerator.ContainerFromIndex(_manualSelectedIndex) is ListBoxItem oldItem)
+            {
+                oldItem.IsSelected = false;
+            }
+        }
+
+        ChannelList.SelectedIndex = -1;
+
+        _manualSelectedIndex = index;
+        if (index >= 0 && index < _circularItems.Count)
+        {
+            if (ChannelList.ItemContainerGenerator.ContainerFromIndex(index) is ListBoxItem newItem)
+            {
+                newItem.IsSelected = true;
+            }
+            else
+            {
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+                {
+                    _suppressSelectionChanged = true;
+                    if (ChannelList.ItemContainerGenerator.ContainerFromIndex(index) is ListBoxItem item)
+                    {
+                        item.IsSelected = true;
+                    }
+                    _suppressSelectionChanged = false;
+                });
+            }
+        }
+
+        _suppressSelectionChanged = false;
+    }
+
+    private static ScrollViewer? FindListBoxScrollViewer(DependencyObject parent)
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is ScrollViewer sv) return sv;
+            var result = FindListBoxScrollViewer(child);
+            if (result != null) return result;
+        }
+        return null;
     }
 
     private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)

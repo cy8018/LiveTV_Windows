@@ -139,10 +139,12 @@
             </Grid.RowDefinitions>
 
             <ListBox Grid.Row="0" x:Name="ChannelList" Style="{StaticResource ChannelListBox}"
-                     ItemsSource="{Binding FilteredChannels}" SelectedItem="{Binding SelectedChannel}"
                      ItemContainerStyle="{StaticResource ChannelListBoxItem}"
-                     ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.PanningMode="VerticalOnly"
-                     SelectionChanged="ChannelList_SelectionChanged">
+                     ScrollViewer.VerticalScrollBarVisibility="Hidden" ScrollViewer.PanningMode="VerticalOnly"
+                     ScrollViewer.CanContentScroll="False"
+                     VirtualizingStackPanel.IsVirtualizing="False"
+                     SelectionChanged="ChannelList_SelectionChanged"
+                     ScrollViewer.ScrollChanged="ChannelList_ScrollChanged">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Grid>
