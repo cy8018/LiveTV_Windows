@@ -88,13 +88,29 @@ public partial class FullscreenOverlayWindow : Window
             }
 
             int percent = (int)(status.BatteryLifePercent * 100);
-            string icon = status.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online
-                ? "\uEA93"  // Charging icon
-                : percent > 75 ? "\uE83F"
-                : percent > 50 ? "\uE83E"
-                : percent > 25 ? "\uE83D"
-                : percent > 10 ? "\uE83C"
-                : "\uE850"; // Low battery
+            bool isCharging = status.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online;
+
+            string icon;
+            if (isCharging)
+            {
+                // Charging icons (with lightning bolt) at different levels
+                icon = percent > 90 ? "\uEA93"   // Charging full
+                     : percent > 70 ? "\uEA92"   // Charging 80
+                     : percent > 50 ? "\uEA91"   // Charging 60
+                     : percent > 30 ? "\uEA90"   // Charging 40
+                     : percent > 10 ? "\uEA8F"   // Charging 20
+                     : "\uEA8E";                  // Charging low
+            }
+            else
+            {
+                // Battery icons (no charging) at different levels
+                icon = percent > 90 ? "\uE83F"   // Full
+                     : percent > 70 ? "\uE83E"   // 80
+                     : percent > 50 ? "\uE83D"   // 60
+                     : percent > 30 ? "\uE83C"   // 40
+                     : percent > 10 ? "\uE83B"   // 20
+                     : "\uE850";                  // Low / critical
+            }
 
             BatteryIcon.Text = icon;
             BatteryIcon.Visibility = Visibility.Visible;
@@ -155,10 +171,19 @@ public partial class FullscreenOverlayWindow : Window
         _viewModel = viewModel;
         DataContext = viewModel;
         
-        // Listen for channel list changes to rebuild circular list
-        viewModel.FilteredChannels.CollectionChanged += (s, e) =>
+        // Listen for channel list changes to rebuild circular list.
+        // FilterChannels() replaces the entire ObservableCollection, so we must
+        // watch the property change (not CollectionChanged on a single instance).
+        viewModel.PropertyChanged += (s, e) =>
         {
-            Dispatcher.BeginInvoke(DispatcherPriority.Background, BuildCircularList);
+            if (e.PropertyName == nameof(MainViewModel.FilteredChannels))
+            {
+                Dispatcher.BeginInvoke(DispatcherPriority.Background, BuildCircularList);
+            }
+            else if (e.PropertyName == nameof(MainViewModel.SelectedChannel))
+            {
+                Dispatcher.BeginInvoke(DispatcherPriority.Background, SyncSelectedChannel);
+            }
         };
     }
     
@@ -407,19 +432,29 @@ public partial class FullscreenOverlayWindow : Window
             }
 
             // Select the current channel in the middle copy
-            if (_viewModel.SelectedChannel != null)
-            {
-                int idx = _viewModel.FilteredChannels.IndexOf(_viewModel.SelectedChannel);
-                if (idx >= 0)
-                {
-                    int middleIndex = channels.Count + idx;
-                    _suppressSelectionChanged = true;
-                    ChannelList.SelectedIndex = middleIndex;
-                    ChannelList.ScrollIntoView(ChannelList.SelectedItem);
-                    _suppressSelectionChanged = false;
-                }
-            }
+            SyncSelectedChannel();
         });
+    }
+
+    /// <summary>
+    /// Sync the overlay channel list selection to match the ViewModel's SelectedChannel.
+    /// </summary>
+    private void SyncSelectedChannel()
+    {
+        if (_viewModel == null) return;
+        var channels = _viewModel.FilteredChannels;
+        var selected = _viewModel.SelectedChannel;
+        if (selected == null || channels.Count == 0) return;
+
+        int idx = channels.IndexOf(selected);
+        if (idx >= 0)
+        {
+            int middleIndex = channels.Count + idx;
+            _suppressSelectionChanged = true;
+            ChannelList.SelectedIndex = middleIndex;
+            ChannelList.ScrollIntoView(ChannelList.SelectedItem);
+            _suppressSelectionChanged = false;
+        }
     }
 
     private static ScrollViewer? FindScrollViewer(DependencyObject parent)

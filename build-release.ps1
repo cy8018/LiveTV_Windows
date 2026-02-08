@@ -11,7 +11,7 @@ Write-Host ""
 
 # Clean previous builds
 Write-Host "[1/3] Cleaning previous builds..." -ForegroundColor Yellow
-dotnet clean -c Release --nologo -v q
+dotnet clean IPTV-Player.csproj -c Release --nologo -v q
 if (Test-Path "./publish") {
     Remove-Item -Path "./publish" -Recurse -Force
 }
@@ -19,7 +19,7 @@ Write-Host "  Done." -ForegroundColor Green
 
 # Restore packages
 Write-Host "[2/3] Restoring packages..." -ForegroundColor Yellow
-dotnet restore -r win-x64 --nologo -v q
+dotnet restore IPTV-Player.csproj -r win-x64 --nologo -v q
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Restore failed!" -ForegroundColor Red
     exit 1
@@ -28,7 +28,7 @@ Write-Host "  Done." -ForegroundColor Green
 
 # Publish
 Write-Host "[3/3] Publishing release build..." -ForegroundColor Yellow
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o "./publish" --nologo
+dotnet publish IPTV-Player.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o "./publish" --nologo
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Publish failed!" -ForegroundColor Red
     exit 1

@@ -110,17 +110,14 @@ public class Channel : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Switch to the next available source
+    /// Switch to the next available source, wrapping around to the first
     /// </summary>
-    /// <returns>True if switched to a new source, false if no more sources</returns>
+    /// <returns>True if there are multiple sources to cycle through</returns>
     public bool TryNextSource()
     {
-        if (CurrentSourceIndex < Sources.Count - 1)
-        {
-            CurrentSourceIndex++;
-            return true;
-        }
-        return false;
+        if (Sources.Count <= 1) return false;
+        CurrentSourceIndex = (CurrentSourceIndex + 1) % Sources.Count;
+        return true;
     }
     
     /// <summary>

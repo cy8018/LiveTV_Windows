@@ -78,12 +78,12 @@ public partial class MainWindow : Window
         DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref value, sizeof(int));
     }
 
-    private void Window_Loaded(object sender, RoutedEventArgs e)
+    private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
         Debug.WriteLine("[IPTV] Window_Loaded fired");
         
-        // Initialize ViewModel
-        _viewModel.Initialize();
+        // Initialize ViewModel (LibVLC loads on background thread)
+        await _viewModel.InitializeAsync();
         
         // Set MediaPlayer on VideoView after initialization
         if (_viewModel.MediaPlayer != null)

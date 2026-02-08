@@ -70,14 +70,19 @@ public partial class MainViewModel : ObservableObject
 
     public MediaPlayer? MediaPlayer => _mediaPlayer;
 
-    public void Initialize()
+    public async Task InitializeAsync()
     {
         Debug.WriteLine("[IPTV] Initializing LibVLC...");
         
         try
         {
-            Core.Initialize();
-            
+            // Run heavy native library loading on a background thread
+            // to keep the UI responsive during startup
+            await Task.Run(() =>
+            {
+                Core.Initialize();
+            });
+
             _libVLC = new LibVLC(
                 "--network-caching=3000",
                 "--live-caching=3000",
@@ -589,9 +594,9 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void TryPreviousSource()
     {
-        if (CurrentChannel != null && CurrentChannel.CurrentSourceIndex > 0)
+        if (CurrentChannel != null && CurrentChannel.SourceCount > 1)
         {
-            CurrentChannel.CurrentSourceIndex--;
+            CurrentChannel.CurrentSourceIndex = (CurrentChannel.CurrentSourceIndex - 1 + CurrentChannel.SourceCount) % CurrentChannel.SourceCount;
             Debug.WriteLine($"[IPTV] Trying previous source: {CurrentChannel.CurrentSourceIndex + 1} of {CurrentChannel.SourceCount}");
             PlayChannel(CurrentChannel);
         }
