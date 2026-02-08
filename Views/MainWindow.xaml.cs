@@ -7,6 +7,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using IPTVPlayer.Models;
+using IPTVPlayer.Services;
 using IPTVPlayer.ViewModels;
 
 namespace IPTVPlayer.Views;
@@ -30,11 +31,15 @@ public partial class MainWindow : Window
     private DateTime _lastClickTime = DateTime.MinValue;
     private const int DoubleClickTimeMs = 400;
 
+    // Settings for sidebar position
+    private readonly SettingsService _settingsService = new();
+
     // Circular scrolling for windowed channel list
     private const int CircularCopies = 3;
     private List<Channel> _circularItems = new();
     private bool _isRecentering = false;
     private bool _suppressSelectionChanged = false;
+    private bool _selectionFromListClick = false;
     private int _manualSelectedIndex = -1;
 
     // Windows API for dark title bar
@@ -297,6 +302,9 @@ public partial class MainWindow : Window
             }
         };
         
+        // Apply saved sidebar position
+        ApplySidebarPosition(_settingsService.Settings.ChannelListOnRight);
+
         // Setup mouse tracking for video area
         VideoView.MouseMove += VideoView_MouseMove;
         VideoView.MouseDoubleClick += VideoView_MouseDoubleClick;
@@ -598,6 +606,7 @@ public partial class MainWindow : Window
         if (e.AddedItems.Count > 0 && e.AddedItems[0] is Channel channel)
         {
             _manualSelectedIndex = ChannelList.SelectedIndex;
+            _selectionFromListClick = true;
             _viewModel.SelectedChannel = channel;
             _viewModel.PlaySelectedChannel();
         }
@@ -657,6 +666,7 @@ public partial class MainWindow : Window
         }
 
         _suppressSelectionChanged = true;
+        ChannelList.ItemsSource = null;
         ChannelList.ItemsSource = _circularItems;
         _suppressSelectionChanged = false;
 
@@ -677,6 +687,12 @@ public partial class MainWindow : Window
         var channels = _viewModel.FilteredChannels;
         var selected = _viewModel.SelectedChannel;
         if (selected == null || channels.Count == 0) return;
+
+        if (_selectionFromListClick)
+        {
+            _selectionFromListClick = false;
+            return;
+        }
 
         int idx = channels.IndexOf(selected);
         if (idx < 0) return;
@@ -806,13 +822,47 @@ public partial class MainWindow : Window
         {
             Sidebar.Visibility = Visibility.Collapsed;
             SidebarColumn.Width = new GridLength(0);
-            ToggleSidebarIcon.Text = "\uE8FD"; // Show channels icon
         }
         else
         {
             Sidebar.Visibility = Visibility.Visible;
             SidebarColumn.Width = new GridLength(200);
-            ToggleSidebarIcon.Text = "\uE8FD"; // Show channels icon
+        }
+    }
+
+    private void ToggleSidebarPosition_Click(object sender, RoutedEventArgs e)
+    {
+        bool newValue = !_settingsService.Settings.ChannelListOnRight;
+        _settingsService.Settings.ChannelListOnRight = newValue;
+        _settingsService.Save();
+        ApplySidebarPosition(newValue);
+    }
+
+    private void ApplySidebarPosition(bool onRight)
+    {
+        if (onRight)
+        {
+            // Sidebar on right: video col 0, sidebar col 1
+            Grid.SetColumn(Sidebar, 1);
+            Grid.SetColumn(VideoArea, 0);
+            MainGrid.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
+            MainGrid.ColumnDefinitions[1].Width = Sidebar.Visibility == Visibility.Visible
+                ? new GridLength(200) : new GridLength(0);
+            SidebarColumn = MainGrid.ColumnDefinitions[1];
+            ToggleSidebarPositionIcon.Text = "\uE72B"; // Arrow left
+            ToggleSidebarPositionButton.ToolTip = "Move channel list to left side";
+        }
+        else
+        {
+            // Sidebar on left (default): sidebar col 0, video col 1
+            Grid.SetColumn(Sidebar, 0);
+            Grid.SetColumn(VideoArea, 1);
+            MainGrid.ColumnDefinitions[0].Width = Sidebar.Visibility == Visibility.Visible
+                ? new GridLength(200) : new GridLength(0);
+            MainGrid.ColumnDefinitions[1].Width = new GridLength(1, GridUnitType.Star);
+            SidebarColumn = MainGrid.ColumnDefinitions[0];
+            ToggleSidebarPositionIcon.Text = "\uE72A"; // Arrow right
+            ToggleSidebarPositionButton.ToolTip = "Move channel list to right side";
         }
     }
 

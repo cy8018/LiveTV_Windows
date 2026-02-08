@@ -201,7 +201,7 @@
         </Grid>
 
         <!-- Video Area with LibVLCSharp -->
-        <Grid Grid.Column="1" Grid.Row="0" Background="Black">
+        <Grid x:Name="VideoArea" Grid.Column="1" Grid.Row="0" Background="Black">
             <!-- VLC Video View - Only visible when playing AND not loading -->
             <!-- VLC renders via a separate HWND on top of WPF, so we must collapse it to show the loading overlay -->
             <Border Background="Black">
@@ -300,6 +300,9 @@
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
                     <Button x:Name="ToggleSidebarButton" Style="{StaticResource IconButton}" ToolTip="Toggle Channel List" Click="ToggleSidebar_Click" Margin="0,0,8,0">
                         <TextBlock x:Name="ToggleSidebarIcon" Text="&#xE8FD;" FontFamily="Segoe MDL2 Assets" FontSize="20"/>
+                    </Button>
+                    <Button x:Name="ToggleSidebarPositionButton" Style="{StaticResource IconButton}" ToolTip="Move channel list to other side" Click="ToggleSidebarPosition_Click" Margin="0,0,8,0">
+                        <TextBlock x:Name="ToggleSidebarPositionIcon" Text="&#xE72A;" FontFamily="Segoe MDL2 Assets" FontSize="20"/>
                     </Button>
                     <Button Style="{StaticResource IconButton}" ToolTip="Previous Channel" Command="{Binding PreviousChannelCommand}">
                         <TextBlock Text="&#xE892;" FontFamily="Segoe MDL2 Assets" FontSize="20"/>
