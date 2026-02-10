@@ -73,6 +73,7 @@ public class Channel : INotifyPropertyChanged
     public string? TvgName { get; set; }
     public string? Language { get; set; }
     public string? Country { get; set; }
+    public string? TvgUrl { get; set; }
     public Dictionary<string, string> ExtendedAttributes { get; set; } = new();
 
     private bool _isHidden;

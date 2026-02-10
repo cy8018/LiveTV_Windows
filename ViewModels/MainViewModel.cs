@@ -22,6 +22,9 @@ public partial class MainViewModel : ObservableObject
     private DispatcherTimer? _statsTimer;
     private long _lastBytesRead;
     private DateTime _lastStatsTime;
+    private readonly EpgService _epgService = new();
+    private DispatcherTimer? _epgTimer;
+    private CancellationTokenSource? _epgCts;
 
     [ObservableProperty]
     private ObservableCollection<Channel> _channels = new();
@@ -68,6 +71,24 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _volumeIcon = "\uE767";  // Volume icon
 
+    [ObservableProperty]
+    private bool _isEpgVisible;
+
+    [ObservableProperty]
+    private EpgProgram? _currentEpgProgram;
+
+    [ObservableProperty]
+    private ObservableCollection<EpgProgram> _upcomingEpgPrograms = new();
+
+    [ObservableProperty]
+    private bool _isEpgLoading;
+
+    [ObservableProperty]
+    private bool _hasUpcomingPrograms;
+
+    [ObservableProperty]
+    private double _epgProgressPercent;
+
     public MediaPlayer? MediaPlayer => _mediaPlayer;
 
     public async Task InitializeAsync()
@@ -105,6 +126,17 @@ public partial class MainViewModel : ObservableObject
             };
             _statsTimer.Tick += StatsTimer_Tick;
             
+            // Setup EPG refresh timer
+            _epgTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(30)
+            };
+            _epgTimer.Tick += (s, e) =>
+            {
+                if (IsEpgVisible) UpdateEpgInfo();
+            };
+            _epgTimer.Start();
+            
             // Event handlers — use BeginInvoke (non-blocking) to avoid deadlocks
             // between VLC threads and the UI thread
             _mediaPlayer.Playing += (s, e) => Application.Current.Dispatcher.BeginInvoke(() =>
@@ -116,6 +148,7 @@ public partial class MainViewModel : ObservableObject
                 PlayPauseIcon = "\uE769";  // Pause icon
                 StatusMessage = $"Now playing: {CurrentChannel?.Name}";
                 StartStatsTimer();
+                if (IsEpgVisible) UpdateEpgInfo();
             });
             
             _mediaPlayer.Paused += (s, e) => Application.Current.Dispatcher.BeginInvoke(() =>
@@ -206,6 +239,11 @@ public partial class MainViewModel : ObservableObject
         Debug.WriteLine("[IPTV] Cleanup called");
         StopStatsTimer();
         _statsTimer = null;
+        _epgTimer?.Stop();
+        _epgTimer = null;
+        _epgCts?.Cancel();
+        _epgCts?.Dispose();
+        _epgCts = null;
         
         // Run cleanup on background thread to prevent UI hang
         var mediaPlayer = _mediaPlayer;
@@ -475,6 +513,28 @@ public partial class MainViewModel : ObservableObject
             LoadingText = "Loading playlist...";
             StatusMessage = "Loading playlist...";
 
+            // Stop current playback
+            _mediaPlayer?.Stop();
+            CurrentChannel = null;
+            SelectedChannel = null;
+            IsPlaying = false;
+            IsPaused = false;
+            PlayPauseIcon = "\uE768";
+
+            // Clear all saved customizations (order, hidden, source index)
+            _settings.Settings.ChannelCustomizations.Clear();
+            _settings.Save();
+
+            // Clear EPG data so it reloads fresh for the new playlist
+            _epgCts?.Cancel();
+            _epgCts?.Dispose();
+            _epgCts = null;
+            _epgService.Clear();
+            CurrentEpgProgram = null;
+            UpcomingEpgPrograms = new ObservableCollection<EpgProgram>();
+            HasUpcomingPrograms = false;
+            EpgProgressPercent = 0;
+
             List<Channel> channels;
             
             if (path.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
@@ -489,8 +549,11 @@ public partial class MainViewModel : ObservableObject
 
             Channels = new ObservableCollection<Channel>(channels);
             
-            // Apply saved customizations (hidden/order)
-            ApplyChannelCustomizations();
+            // Assign default sort order (no saved customizations to apply)
+            foreach (var channel in Channels)
+            {
+                channel.SortOrder = channel.Id;
+            }
             FilterChannels();
 
             StatusMessage = $"Loaded {channels.Count} channels";
@@ -498,6 +561,12 @@ public partial class MainViewModel : ObservableObject
             // Save last playlist path
             _settings.Settings.LastPlaylistPath = path;
             _settings.Save();
+
+            // Load EPG data in background
+            if (_parser.EpgUrls.Count > 0)
+            {
+                _ = LoadEpgDataAsync(_parser.EpgUrls.ToList());
+            }
         }
         catch (Exception ex)
         {
@@ -690,5 +759,98 @@ public partial class MainViewModel : ObservableObject
     private void Fullscreen()
     {
         // Handled in code-behind for window manipulation
+    }
+
+    [RelayCommand]
+    private void ToggleEpg()
+    {
+        IsEpgVisible = !IsEpgVisible;
+        if (IsEpgVisible)
+        {
+            UpdateEpgInfo();
+        }
+    }
+
+    partial void OnCurrentChannelChanged(Channel? value)
+    {
+        if (IsEpgVisible)
+        {
+            UpdateEpgInfo();
+        }
+    }
+
+    private void UpdateEpgInfo()
+    {
+        if (CurrentChannel == null)
+        {
+            CurrentEpgProgram = null;
+            UpcomingEpgPrograms = new ObservableCollection<EpgProgram>();
+            HasUpcomingPrograms = false;
+            EpgProgressPercent = 0;
+            return;
+        }
+
+        Debug.WriteLine($"[EPG] UpdateEpgInfo for channel: Name='{CurrentChannel.Name}', TvgId='{CurrentChannel.TvgId}'");
+
+        CurrentEpgProgram = _epgService.GetCurrentProgram(CurrentChannel.TvgId, CurrentChannel.Name);
+
+        var upcoming = _epgService.GetUpcomingPrograms(CurrentChannel.TvgId, 5, CurrentChannel.Name);
+
+        // If no current programme but upcoming ones exist, show the first upcoming as "current"
+        // (EPG data may not have started yet or has a gap between programmes)
+        if (CurrentEpgProgram == null && upcoming.Count > 0)
+        {
+            Debug.WriteLine($"[EPG] No current programme, promoting first upcoming: '{upcoming[0].Title}' at {upcoming[0].Start}");
+            CurrentEpgProgram = upcoming[0];
+            upcoming = upcoming.Skip(1).ToList();
+        }
+
+        UpcomingEpgPrograms = new ObservableCollection<EpgProgram>(upcoming);
+        HasUpcomingPrograms = upcoming.Count > 0;
+
+        Debug.WriteLine($"[EPG] Result: Current='{CurrentEpgProgram?.Title}', Upcoming={UpcomingEpgPrograms.Count}");
+
+        if (CurrentEpgProgram != null)
+        {
+            var total = (CurrentEpgProgram.Stop - CurrentEpgProgram.Start).TotalSeconds;
+            var elapsed = (DateTime.Now - CurrentEpgProgram.Start).TotalSeconds;
+            EpgProgressPercent = total > 0 ? Math.Min(1.0, Math.Max(0, elapsed / total)) : 0;
+        }
+        else
+        {
+            EpgProgressPercent = 0;
+        }
+    }
+
+    private async Task LoadEpgDataAsync(List<string> epgUrls)
+    {
+        try
+        {
+            _epgCts?.Cancel();
+            _epgCts?.Dispose();
+            _epgCts = new CancellationTokenSource();
+            var token = _epgCts.Token;
+
+            IsEpgLoading = true;
+            Debug.WriteLine($"[EPG] Starting EPG load for {epgUrls.Count} URL(s)");
+            await _epgService.LoadEpgAsync(epgUrls, token);
+            IsEpgLoading = false;
+            Debug.WriteLine("[EPG] EPG data loaded successfully");
+
+            if (IsEpgVisible)
+            {
+                UpdateEpgInfo();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Debug.WriteLine("[EPG] EPG loading was cancelled");
+            IsEpgLoading = false;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[EPG] Failed to load EPG data: {ex.Message}");
+            IsEpgLoading = false;
+        }
     }
 }

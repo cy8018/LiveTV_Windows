@@ -14,6 +14,11 @@ public partial class M3UParser
     private static readonly Regex AttributeRegex = GenerateAttributeRegex();
 
     /// <summary>
+    /// EPG/XMLTV URLs extracted from the playlist (from header and individual channels)
+    /// </summary>
+    public List<string> EpgUrls { get; } = new();
+
+    /// <summary>
     /// Parse an M3U playlist from a file path
     /// </summary>
     public async Task<List<Channel>> ParseFileAsync(string filePath)
@@ -49,8 +54,20 @@ public partial class M3UParser
         if (lines.Length == 0)
             return rawChannels;
 
-        // Skip #EXTM3U header if present
-        int startIndex = lines[0].StartsWith("#EXTM3U", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+        // Skip #EXTM3U header if present, and extract global EPG URL
+        string? headerEpgUrl = null;
+        int startIndex = 0;
+        if (lines[0].StartsWith("#EXTM3U", StringComparison.OrdinalIgnoreCase))
+        {
+            startIndex = 1;
+            var headerAttrs = ExtractAttributes(lines[0]);
+            if (headerAttrs.TryGetValue("tvg-url", out var tvgUrl))
+                headerEpgUrl = tvgUrl;
+            else if (headerAttrs.TryGetValue("url-tvg", out var urlTvg))
+                headerEpgUrl = urlTvg;
+            else if (headerAttrs.TryGetValue("x-tvg-url", out var xTvgUrl))
+                headerEpgUrl = xTvgUrl;
+        }
 
         for (int i = startIndex; i < lines.Length; i++)
         {
@@ -86,7 +103,20 @@ public partial class M3UParser
         }
 
         // Combine channels with the same name
-        return CombineChannels(rawChannels);
+        var combined = CombineChannels(rawChannels);
+
+        // Collect all unique EPG URLs
+        EpgUrls.Clear();
+        if (!string.IsNullOrEmpty(headerEpgUrl))
+            EpgUrls.Add(headerEpgUrl);
+        foreach (var ch in combined)
+        {
+            if (!string.IsNullOrEmpty(ch.TvgUrl) &&
+                !EpgUrls.Any(u => u.Equals(ch.TvgUrl, StringComparison.OrdinalIgnoreCase)))
+                EpgUrls.Add(ch.TvgUrl);
+        }
+
+        return combined;
     }
 
     /// <summary>
@@ -114,6 +144,7 @@ public partial class M3UParser
                 existing.Logo ??= channel.Logo;
                 existing.Group ??= channel.Group;
                 existing.TvgId ??= channel.TvgId;
+                existing.TvgUrl ??= channel.TvgUrl;
             }
             else
             {
@@ -182,6 +213,9 @@ public partial class M3UParser
                     break;
                 case "tvg-country":
                     channel.Country = attr.Value;
+                    break;
+                case "tvg-url":
+                    channel.TvgUrl = attr.Value;
                     break;
                 case "hidden":
                     channel.IsHidden = attr.Value.Equals("true", StringComparison.OrdinalIgnoreCase) ||

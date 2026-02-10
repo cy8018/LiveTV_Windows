@@ -257,6 +257,10 @@ public partial class FullscreenOverlayWindow : Window
                     ShowOverlays();
                 e.Handled = true;
                 break;
+            case Key.G:
+                _viewModel?.ToggleEpgCommand.Execute(null);
+                e.Handled = true;
+                break;
             case Key.PageUp:
                 _viewModel?.PreviousChannelCommand.Execute(null);
                 e.Handled = true;
@@ -286,6 +290,11 @@ public partial class FullscreenOverlayWindow : Window
         {
             SidebarTransform.X = 0; // Show sidebar
         }
+        // Restore EPG if it was toggled on
+        if (_viewModel?.IsEpgVisible == true)
+        {
+            EpgOverlayPanel.Visibility = Visibility.Visible;
+        }
         _overlaysVisible = true;
         _lastShowTime = DateTime.Now;
         ResetHideTimer();
@@ -296,6 +305,7 @@ public partial class FullscreenOverlayWindow : Window
         ControlBarPanel.Visibility = Visibility.Collapsed;
         bool onRight = _settingsService?.Settings.ChannelListOnRight ?? false;
         SidebarTransform.X = onRight ? 320 : -320; // Hide sidebar off-screen
+        EpgOverlayPanel.Visibility = Visibility.Collapsed; // Hide EPG with overlays
         _overlaysVisible = false;
         // Note: _sidebarVisible is NOT reset here — it's a persistent user preference
         _lastHideTime = DateTime.Now; // Record when we hid, to prevent immediate re-show
@@ -365,6 +375,9 @@ public partial class FullscreenOverlayWindow : Window
             // Arrow pointing left (move to left)
             ToggleSidebarIcon.Text = "\uE72B";
             ToggleSidebarPositionButton.ToolTip = "Move channel list to left side";
+            // Move EPG to opposite side
+            EpgOverlayPanel.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
+            EpgOverlayPanel.Margin = new Thickness(20, 0, 0, 90);
         }
         else
         {
@@ -373,6 +386,9 @@ public partial class FullscreenOverlayWindow : Window
             // Arrow pointing right (move to right)
             ToggleSidebarIcon.Text = "\uE72A";
             ToggleSidebarPositionButton.ToolTip = "Move channel list to right side";
+            // Move EPG to opposite side
+            EpgOverlayPanel.HorizontalAlignment = System.Windows.HorizontalAlignment.Right;
+            EpgOverlayPanel.Margin = new Thickness(0, 0, 20, 90);
         }
     }
 

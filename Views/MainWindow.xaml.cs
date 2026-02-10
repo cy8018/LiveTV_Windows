@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -164,6 +165,9 @@ public partial class MainWindow : Window
         _mouseIdleTimer.Interval = TimeSpan.FromSeconds(5);
         _mouseIdleTimer.Tick += MouseIdleTimer_Tick;
         
+        // Setup EPG popup positioning
+        EpgPopup.CustomPopupPlacementCallback = EpgPopup_Placement;
+        
         Debug.WriteLine("[IPTV] MainWindow constructor completed");
     }
     
@@ -306,6 +310,19 @@ public partial class MainWindow : Window
         
         // Apply saved sidebar position
         ApplySidebarPosition(_settingsService.Settings.ChannelListOnRight);
+
+        // Reposition EPG popup when window or video area changes
+        LocationChanged += (s, e) => UpdateEpgPopupPosition();
+        SizeChanged += (s, e) => UpdateEpgPopupPosition();
+        VideoArea.SizeChanged += (s, e) => UpdateEpgPopupPosition();
+
+        // Hide EPG popup when window loses focus so it doesn't float over other apps
+        Deactivated += (s, e) => EpgPopup.IsOpen = false;
+        Activated += (s, e) =>
+        {
+            if (_viewModel.IsEpgVisible)
+                EpgPopup.IsOpen = true;
+        };
 
         // Setup mouse tracking for video area
         VideoView.MouseMove += VideoView_MouseMove;
@@ -847,6 +864,10 @@ public partial class MainWindow : Window
                 ViewModel.NextChannelCommand.Execute(null);
                 e.Handled = true;
                 break;
+            case Key.G:
+                ViewModel.ToggleEpgCommand.Execute(null);
+                e.Handled = true;
+                break;
             case Key.Up:
                 if (Keyboard.Modifiers == ModifierKeys.Control)
                 {
@@ -912,6 +933,9 @@ public partial class MainWindow : Window
             ToggleSidebarPositionIcon.Text = "\uE72A"; // Arrow right
             ToggleSidebarPositionButton.ToolTip = "Move channel list to right side";
         }
+
+        // Reposition EPG popup to the opposite side
+        UpdateEpgPopupPosition();
     }
 
     private void Fullscreen_Click(object sender, RoutedEventArgs e)
@@ -965,6 +989,9 @@ public partial class MainWindow : Window
         SidebarColumn.Width = new GridLength(0);
         ControlBar.Visibility = Visibility.Collapsed;
         ControlBarRow.Height = new GridLength(0);
+        // Clear the binding and force-close the popup so it stays hidden during fullscreen
+        System.Windows.Data.BindingOperations.ClearBinding(EpgPopup, System.Windows.Controls.Primitives.Popup.IsOpenProperty);
+        EpgPopup.IsOpen = false;
         
         // Hide the custom title bar by setting row height to 0
         if (MainGrid.Parent is Grid outerGrid && outerGrid.RowDefinitions.Count > 0)
@@ -1052,6 +1079,10 @@ public partial class MainWindow : Window
         WindowState = _previousWindowState;
 
         _isFullscreen = false;
+        
+        // Restore EPG popup binding to IsEpgVisible
+        var epgBinding = new System.Windows.Data.Binding("IsEpgVisible") { Mode = System.Windows.Data.BindingMode.TwoWay };
+        EpgPopup.SetBinding(System.Windows.Controls.Primitives.Popup.IsOpenProperty, epgBinding);
         
         // Update fullscreen icon
         FullscreenIcon.Text = "\uE740"; // Enter fullscreen icon
@@ -1211,5 +1242,36 @@ public partial class MainWindow : Window
                 ResetMouseIdleTimer();
             }
         }
+    }
+
+    private CustomPopupPlacement[] EpgPopup_Placement(System.Windows.Size popupSize, System.Windows.Size targetSize, System.Windows.Point offset)
+    {
+        // Position EPG on the opposite side of the sidebar
+        bool sidebarOnRight = _settingsService.Settings.ChannelListOnRight;
+        double x;
+        if (sidebarOnRight)
+        {
+            // Sidebar on right → EPG on bottom-left of video area
+            x = 20;
+        }
+        else
+        {
+            // Sidebar on left → EPG on bottom-right of video area
+            x = targetSize.Width - popupSize.Width - 20;
+        }
+
+        var placement = new CustomPopupPlacement(
+            new System.Windows.Point(x, targetSize.Height - popupSize.Height - 20),
+            PopupPrimaryAxis.None);
+        return new[] { placement };
+    }
+
+    private void UpdateEpgPopupPosition()
+    {
+        if (!EpgPopup.IsOpen) return;
+        // Force the Popup to recalculate its position by toggling the offset
+        var offset = EpgPopup.HorizontalOffset;
+        EpgPopup.HorizontalOffset = offset + 1;
+        EpgPopup.HorizontalOffset = offset;
     }
 }

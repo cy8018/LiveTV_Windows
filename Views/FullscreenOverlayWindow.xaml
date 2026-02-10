@@ -218,6 +218,60 @@
             </Grid>
         </Border>
 
+        <!-- EPG Info Overlay -->
+        <Border x:Name="EpgOverlayPanel" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                Margin="0,0,20,90" MaxWidth="480" MinWidth="340"
+                Background="#CC1E1E1E" CornerRadius="12"
+                IsHitTestVisible="False"
+                Visibility="{Binding IsEpgVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="15" ShadowDepth="3" Opacity="0.5"/>
+            </Border.Effect>
+            <StackPanel Margin="20">
+                <TextBlock Text="NOW" FontSize="13" FontWeight="Bold" Foreground="#4CAF50" Margin="0,0,0,8"
+                           Visibility="{Binding CurrentEpgProgram, Converter={StaticResource NullToVisibilityConverter}}"/>
+                <StackPanel Visibility="{Binding CurrentEpgProgram, Converter={StaticResource NullToVisibilityConverter}}">
+                    <TextBlock Text="{Binding CurrentEpgProgram.Title}" FontSize="22" FontWeight="SemiBold"
+                               Foreground="#FFFFFF" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                    <TextBlock Text="{Binding CurrentEpgProgram.TimeRange}" FontSize="15"
+                               Foreground="#CCCCCC" Margin="0,0,0,10"/>
+                    <Grid Height="5" Margin="0,0,0,8" ClipToBounds="True">
+                        <Border Background="#40FFFFFF" CornerRadius="2"/>
+                        <Border Background="#4CAF50" CornerRadius="2" HorizontalAlignment="Stretch"
+                                RenderTransformOrigin="0,0.5">
+                            <Border.RenderTransform>
+                                <ScaleTransform ScaleX="{Binding EpgProgressPercent}"/>
+                            </Border.RenderTransform>
+                        </Border>
+                    </Grid>
+                    <TextBlock Text="{Binding CurrentEpgProgram.Description}" FontSize="14"
+                               Foreground="#CCCCCC" TextWrapping="Wrap" MaxHeight="50"
+                               TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding CurrentEpgProgram.Description, Converter={StaticResource NullToVisibilityConverter}}"/>
+                </StackPanel>
+                <TextBlock Text="No program info available" FontSize="15" Foreground="#80CCCCCC"
+                           Visibility="{Binding CurrentEpgProgram, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}"/>
+                <StackPanel Visibility="{Binding HasUpcomingPrograms, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Border BorderThickness="0,1,0,0" BorderBrush="#40FFFFFF" Margin="0,12,0,10"/>
+                    <TextBlock Text="COMING UP" FontSize="13" FontWeight="Bold" Foreground="#CCCCCC" Margin="0,0,0,8"/>
+                    <ItemsControl ItemsSource="{Binding UpcomingEpgPrograms}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="60"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding StartTime}" FontSize="15" Foreground="#4CAF50" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="16" Foreground="#FFFFFF" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
         <!-- Control Bar (bottom) -->
         <Border x:Name="ControlBarPanel" VerticalAlignment="Bottom" HorizontalAlignment="Stretch" 
                 Background="#E8252526" Padding="20,15" Visibility="Collapsed"
@@ -239,6 +293,9 @@
                     </Button>
                     <Button x:Name="ToggleSidebarPositionButton" Style="{StaticResource OverlayIconButton}" ToolTip="Move channel list to other side" Click="ToggleSidebarPosition_Click" Margin="4,0,0,0">
                         <TextBlock x:Name="ToggleSidebarIcon" Text="&#xE72A;" FontFamily="Segoe MDL2 Assets" FontSize="18"/>
+                    </Button>
+                    <Button Style="{StaticResource OverlayIconButton}" ToolTip="Program Guide (G)" Command="{Binding ToggleEpgCommand}" Margin="4,0,0,0">
+                        <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="22"/>
                     </Button>
                 </StackPanel>
 
