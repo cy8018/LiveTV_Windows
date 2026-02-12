@@ -290,14 +290,20 @@ public partial class FullscreenOverlayWindow : Window
         {
             SidebarTransform.X = 0; // Show sidebar
         }
-        // Restore EPG if it was toggled on
-        if (_viewModel?.IsEpgVisible == true)
-        {
-            EpgOverlayPanel.Visibility = Visibility.Visible;
-        }
+        // Re-establish EPG binding (HideOverlays breaks it by setting a local value)
+        RestoreEpgOverlayBinding();
         _overlaysVisible = true;
         _lastShowTime = DateTime.Now;
         ResetHideTimer();
+    }
+
+    private void RestoreEpgOverlayBinding()
+    {
+        var epgBinding = new System.Windows.Data.Binding("IsEpgVisible")
+        {
+            Converter = (System.Windows.Data.IValueConverter)FindResource("BoolToVisibilityConverter")
+        };
+        EpgOverlayPanel.SetBinding(UIElement.VisibilityProperty, epgBinding);
     }
 
     public void HideOverlays()

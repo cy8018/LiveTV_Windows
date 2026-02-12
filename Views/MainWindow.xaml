@@ -351,7 +351,7 @@
         </Popup>
 
         <!-- Control Bar (Normal Mode) -->
-        <Border x:Name="ControlBar" Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="1" Background="{StaticResource SecondaryBrush}" Padding="15,12">
+        <Border x:Name="ControlBar" Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="1" Background="{StaticResource PrimaryBrush}" Padding="15,12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -365,6 +365,9 @@
                     </Button>
                     <Button x:Name="ToggleSidebarPositionButton" Style="{StaticResource IconButton}" ToolTip="Move channel list to other side" Click="ToggleSidebarPosition_Click" Margin="0,0,8,0">
                         <TextBlock x:Name="ToggleSidebarPositionIcon" Text="&#xE72A;" FontFamily="Segoe MDL2 Assets" FontSize="20"/>
+                    </Button>
+                    <Button Style="{StaticResource IconButton}" ToolTip="Program Guide (G)" Command="{Binding ToggleEpgCommand}" Margin="0,0,8,0">
+                        <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="20"/>
                     </Button>
                     <Button Style="{StaticResource IconButton}" ToolTip="Previous Channel" Command="{Binding PreviousChannelCommand}">
                         <TextBlock Text="&#xE892;" FontFamily="Segoe MDL2 Assets" FontSize="20"/>
@@ -409,9 +412,6 @@
                         <TextBlock Text="{Binding VolumeIcon}" FontFamily="Segoe MDL2 Assets" FontSize="20"/>
                     </Button>
                     <Slider x:Name="VolumeSlider" Style="{StaticResource VolumeSlider}" Value="{Binding Volume}" Margin="8,0,15,0"/>
-                    <Button Style="{StaticResource IconButton}" ToolTip="Program Guide (G)" Command="{Binding ToggleEpgCommand}">
-                        <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="20"/>
-                    </Button>
                     <Button Style="{StaticResource IconButton}" ToolTip="Fullscreen (F)" Click="Fullscreen_Click">
                         <TextBlock x:Name="FullscreenIcon" Text="&#xE740;" FontFamily="Segoe MDL2 Assets" FontSize="20"/>
                     </Button>

@@ -316,12 +316,24 @@ public partial class MainWindow : Window
         SizeChanged += (s, e) => UpdateEpgPopupPosition();
         VideoArea.SizeChanged += (s, e) => UpdateEpgPopupPosition();
 
-        // Hide EPG popup when window loses focus so it doesn't float over other apps
-        Deactivated += (s, e) => EpgPopup.IsOpen = false;
+        // Hide EPG popup when window loses focus so it doesn't float over other apps.
+        // Use binding clear/restore instead of setting IsOpen directly, which would
+        // break the data binding and prevent ToggleEpg from working afterwards.
+        Deactivated += (s, e) =>
+        {
+            if (!_isFullscreen)
+            {
+                System.Windows.Data.BindingOperations.ClearBinding(EpgPopup, System.Windows.Controls.Primitives.Popup.IsOpenProperty);
+                EpgPopup.IsOpen = false;
+            }
+        };
         Activated += (s, e) =>
         {
-            if (_viewModel.IsEpgVisible)
-                EpgPopup.IsOpen = true;
+            if (!_isFullscreen)
+            {
+                var epgBinding = new System.Windows.Data.Binding("IsEpgVisible") { Mode = System.Windows.Data.BindingMode.TwoWay };
+                EpgPopup.SetBinding(System.Windows.Controls.Primitives.Popup.IsOpenProperty, epgBinding);
+            }
         };
 
         // Setup mouse tracking for video area
